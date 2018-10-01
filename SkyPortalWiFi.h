@@ -52,7 +52,7 @@ enum SkyPortalWiFiErrors {SKYPORTAL_OK=0, NOT_CONNECTED, SKYPORTAL_CANT_CONNECT,
 #define SkyPortalWiFi_SLEW_NAME_LENGHT 12
 
 #define STEPS_PER_REVOLUTION    16777216
-#define STEPS_PER_DEGREE        STEPS_PER_REVOLUTION / 360.0
+#define STEPS_PER_DEGREE        (STEPS_PER_REVOLUTION / 360.0)
 #define TRACK_SCALE             60000 / STEPS_PER_DEGREE
 
 enum MC_Commands
@@ -204,13 +204,13 @@ private:
     unsigned char checksum(const unsigned char *cMessage, int nLen);
     void    hexdump(const unsigned char* pszInputBuffer, unsigned char *pszOutputBuffer, int nInputBufferSize, int nOutpuBufferSize);
 
-    int     getPosition(int &nAltSteps, int &nAzSteps);
-    int     setPosition(int nAltSteps, int nAzSteps);
+    int     getPosition(int &nAzSteps, int &nAltSteps);
+    int     setPosition(int nAzSteps, int nAltSteps);
 
     int     moveAlt(int nSteps);
     int     moveAz(int nSteps);
 
-    int     setTrackingRatesSteps(int nAltRate, int nAzRate, int nDataLen);
+    int     setTrackingRatesSteps(int nAzRate, int nAltRate, int nDataLen);
 
     void    convertDecDegToDDMMSS(double dDeg, char *szResult, char &cSign, unsigned int size);
     int     convertDDMMSSToDecDeg(const char *szStrDeg, double &dDecDeg);
