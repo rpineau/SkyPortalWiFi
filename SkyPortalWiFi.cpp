@@ -1033,8 +1033,8 @@ int SkyPortalWiFi::startSlewTo(double dRa, double dDec, bool bFast)
     if(nErr)
         return nErr;
 
-    if(m_bMountIsGEM) {
-        // do Az
+    if(m_bMountIsGEM) {     //// Equatorial //////
+        // do Az (Ra)
         szCmd[DST_DEV] = AZM;
         degToSteps(dRa, nAzPos);
 #if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 2
@@ -1059,7 +1059,7 @@ int SkyPortalWiFi::startSlewTo(double dRa, double dDec, bool bFast)
 #endif
             return nErr;
         }
-        // do Alt
+        // do Alt (Dec)
         szCmd[DST_DEV] = ALT;
         degToSteps(dDec, nAltPos);
 #if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 2
@@ -1084,8 +1084,17 @@ int SkyPortalWiFi::startSlewTo(double dRa, double dDec, bool bFast)
 #endif
             return nErr;
         }
-    } else {
+    }
+    else {                //// Az/Alt mode //////
         m_pTsx->EqToHz(dRa, dDec, dAz, dAlt);
+#if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 2
+        ltime = time(NULL);
+        timestamp = asctime(localtime(&ltime));
+        timestamp[strlen(timestamp) - 1] = 0;
+        fprintf(Logfile, "[%s] [SkyPortalWiFi::startSlewTo] Slewing to dAz = %3.2f\n", timestamp, dAz);
+        fprintf(Logfile, "[%s] [SkyPortalWiFi::startSlewTo] Slewing to dAlt = %3.2f\n", timestamp, dAlt);
+        fflush(Logfile);
+#endif
         // do Az
         szCmd[DST_DEV] = AZM;
         degToSteps(dAz, nAzPos);
@@ -1542,7 +1551,7 @@ int SkyPortalWiFi::setTrackingRatesSteps( int nAzRate, int nAltRate, int nDataLe
         cCmd = MC_SET_NEG_GUIDERATE;
     }
 
-    // special case for sidereal
+    // special case for sidereal south
     if(nAzRate == 0xFFFF &&  m_pTsx->latitude()<0)
         cCmd = MC_SET_NEG_GUIDERATE;
 
@@ -1723,8 +1732,6 @@ void SkyPortalWiFi::fixAltStepsAzSteps(int &nAltSteps, int &nAzSteps)
 
 int SkyPortalWiFi::getFixedAlt(int nAltSteps)
 {
-    return nAltSteps;
-
 #if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 2
     ltime = time(NULL);
     timestamp = asctime(localtime(&ltime));
