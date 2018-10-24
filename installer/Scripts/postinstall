@@ -31,8 +31,6 @@ fi
 
 echo "Installing in $TheSkyX_Path/Resources/Common/$PLUGINS_DIR/MountPlugIns/"
 
-mkdir -p "$TheSkyX_Path/Resources/Common/$PLUGINS_DIR/MountPlugIns/"
-
 cp -f "/tmp/SkyPortalWiFi_X2/mountlist SkyPortalWiFi.txt" "$TheSkyX_Path/Resources/Common/Miscellaneous Files/"
 if [ "$?" -ne "0" ]; then exit 1; fi
 cp -f "/tmp/SkyPortalWiFi_X2/SkyPortalWiFi.ui" "$TheSkyX_Path/Resources/Common/$PLUGINS_DIR/MountPlugIns/"
