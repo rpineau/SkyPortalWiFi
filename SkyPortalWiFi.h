@@ -221,7 +221,9 @@ private:
     void    stepsToDeg(int nSteps, double &dDeg);
     void    degToSteps(double dDeg, int &nSteps);
 
-    void    fixAltStepsAzSteps(int &nAltSteps, int &AzSteps);
+    void    fixAltSteps(int &nAltSteps);
+    void    fixAzSteps(int &nAzSteps);
+
     int     getFixedAlt(int nAltSteps);
     int     getFixedAz(int nAzSteps);
 

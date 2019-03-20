@@ -1721,14 +1721,20 @@ void SkyPortalWiFi::degToSteps(double dDeg, int &nSteps)
 }
 
 
-void SkyPortalWiFi::fixAltStepsAzSteps(int &nAltSteps, int &nAzSteps)
+void SkyPortalWiFi::fixAltSteps(int &nAltSteps)
 {
-    // wrap around
-    nAzSteps %= STEPS_PER_REVOLUTION;
     // return alt encoder adjusted to -90...+90
     if (nAltSteps > STEPS_PER_REVOLUTION / 2)
         nAltSteps -= STEPS_PER_REVOLUTION;
 }
+
+void SkyPortalWiFi::fixAzSteps(int &nAzSteps)
+{
+    // wrap around
+    nAzSteps %= STEPS_PER_REVOLUTION;
+}
+
+
 
 int SkyPortalWiFi::getFixedAlt(int nAltSteps)
 {
