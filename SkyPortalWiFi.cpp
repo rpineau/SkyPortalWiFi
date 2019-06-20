@@ -149,159 +149,179 @@ int SkyPortalWiFi::getRateName(int nZeroBasedIndex, char *pszOut, unsigned int n
 
 #pragma mark - SkyPortalWiFi communication
 
-int SkyPortalWiFi::SkyPortalWiFiSendCommand(const unsigned char *pszCmd, unsigned char *pszResult, int nResultMaxLen)
+int SkyPortalWiFi::SendCommand(const Buffer_t Cmd, Buffer_t Resp, const bool bExpectResponse)
 {
-    int nErr = SKYPORTAL_OK;
-    unsigned char szResp[SERIAL_BUFFER_SIZE];
-    unsigned long  ulBytesWrite;
-    unsigned char cHexMessage[LOG_BUFFER_SIZE];
-    int timeout = 0;
+	int nErr = SKYPORTAL_OK;
+	unsigned long  ulBytesWrite;
+	unsigned char szHexMessage[LOG_BUFFER_SIZE];
+	int timeout = 0;
+	int nRespLen;
+	if(!m_bIsConnected)
+		return ERR_COMMNOLINK;
 
-    if(!m_bIsConnected)
-        return ERR_COMMNOLINK;
-
-    m_pSerx->purgeTxRx();
+	m_pSerx->purgeTxRx();
 #if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 3
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    hexdump(pszCmd, cHexMessage, pszCmd[1]+3, LOG_BUFFER_SIZE);
-    fprintf(Logfile, "[%s] [CSkyPortalWiFiController::SkyPortalWiFiSendCommand] Sending %s\n", timestamp, cHexMessage);
-    fflush(Logfile);
+	ltime = time(NULL);
+	timestamp = asctime(localtime(&ltime));
+	timestamp[strlen(timestamp) - 1] = 0;
+	hexdump(Cmd.data(), szHexMessage, (int)(Cmd[1])+3, LOG_BUFFER_SIZE);
+	fprintf(Logfile, "[%s] [CCelestronFocus::SendCommand] Sending %s\n", timestamp, szHexMessage);
+	fprintf(Logfile, "[%s] [CCelestronFocus::SendCommand] packet size is %d\n", timestamp, (int)(Cmd[1])+3);
+	fflush(Logfile);
 #endif
-    nErr = m_pSerx->writeFile((void *)pszCmd, pszCmd[1]+3, ulBytesWrite);
-    m_pSerx->flushTx();
+	nErr = m_pSerx->writeFile((void *)Cmd.data(), (unsigned long)(Cmd[1])+3, ulBytesWrite);
+	m_pSerx->flushTx();
 
-    if(nErr)
-        return nErr;
-
-    if(pszResult) {
-        memset(szResp,0,SERIAL_BUFFER_SIZE);
-        // Read responses until one is for us or we reach a timeout ?
-        while(szResp[DST_DEV]!=PC) {
-            //we're waiting for the answer
-            if(timeout>50) {
-                return COMMAND_FAILED;
-            }
-            // read response
-            nErr = SkyPortalWiFiReadResponse(szResp, SERIAL_BUFFER_SIZE);
+	if(nErr) {
 #if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 3
-            if(szResp[DST_DEV]==PC) { // filter out command echo
-                ltime = time(NULL);
-                timestamp = asctime(localtime(&ltime));
-                timestamp[strlen(timestamp) - 1] = 0;
-                hexdump(szResp, cHexMessage, szResp[1]+3, LOG_BUFFER_SIZE);
-                fprintf(Logfile, "[%s] [CSkyPortalWiFiController::SkyPortalWiFiSendCommand] response \"%s\"\n", timestamp, cHexMessage);
-                fflush(Logfile);
-            }
+		ltime = time(NULL);
+		timestamp = asctime(localtime(&ltime));
+		timestamp[strlen(timestamp) - 1] = 0;
+		fprintf(Logfile, "[%s] [CCelestronFocus::SendCommand] m_pSerx->writeFile Error %d\n", timestamp, nErr);
+		fprintf(Logfile, "[%s] [CCelestronFocus::SendCommand] m_pSerx->writeFile ulBytesWrite : %lu\n", timestamp, ulBytesWrite);
+		fflush(Logfile);
 #endif
-            if(nErr)
-                return nErr;
-            m_pSleeper->sleep(100);
-            timeout++;
-        }
-        memset(pszResult,0, nResultMaxLen);
-        memcpy(pszResult, szResp, szResp[1]+3);
+		return nErr;
+	}
+	if(bExpectResponse) {
+		// Read responses until one is for us or we reach a timeout ?
+		do {
+			//we're waiting for the answer
+			if(timeout>50) {
+				return COMMAND_FAILED;
+			}
+			// read response
+			nErr = ReadResponse(Resp, nRespLen);
+#if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 3
+			if(Resp.size() && Resp[DST_DEV]==PC) { // filter out command echo
+				ltime = time(NULL);
+				timestamp = asctime(localtime(&ltime));
+				timestamp[strlen(timestamp) - 1] = 0;
+				hexdump(Resp.data(), szHexMessage, Resp[3]+1, LOG_BUFFER_SIZE);
+				fprintf(Logfile, "[%s] [CCelestronFocus::SendCommand] response \"%s\"\n", timestamp, szHexMessage);
+				fflush(Logfile);
+			}
+#endif
+			if(nErr)
+				return nErr;
+			m_pSleeper->sleep(100);
+			timeout++;
+		} while(Resp.size() && Resp[DST_DEV]!=PC);
 
 #if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 3
-        ltime = time(NULL);
-        timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        hexdump(pszResult, cHexMessage, pszResult[1]+3, LOG_BUFFER_SIZE);
-        fprintf(Logfile, "[%s] [CSkyPortalWiFiController::SkyPortalWiFiSendCommand] response copied to pszResult : \"%s\"\n", timestamp, cHexMessage);
-        fflush(Logfile);
+		ltime = time(NULL);
+		timestamp = asctime(localtime(&ltime));
+		timestamp[strlen(timestamp) - 1] = 0;
+		hexdump(Resp.data(), szHexMessage, Resp[3]+1, LOG_BUFFER_SIZE);
+		fprintf(Logfile, "[%s] [CCelestronFocus::SendCommand] response copied to pszResult : \"%s\"\n", timestamp, szHexMessage);
+		fflush(Logfile);
 #endif
-    }
-    return nErr;
-}
-
-int SkyPortalWiFi::SkyPortalWiFiReadResponse(unsigned char *pszRespBuffer, int nBufferLen)
-{
-    int nErr = SKYPORTAL_OK;
-    unsigned long ulBytesRead = 0;
-    int nLen = SERIAL_BUFFER_SIZE;
-    unsigned char cHexMessage[LOG_BUFFER_SIZE];
-    unsigned char cChecksum;
-
-    if(!m_bIsConnected)
-        return ERR_COMMNOLINK;
-
-    memset(pszRespBuffer, 0, (size_t) nBufferLen);
-
-    // Look for a SOM starting character, until timeout occurs
-    while (*pszRespBuffer != SOM && nErr == SKYPORTAL_OK) {
-        nErr = m_pSerx->readFile(pszRespBuffer, 1, ulBytesRead, MAX_TIMEOUT);
-        if (ulBytesRead !=1) // timeout
-            nErr = SKYPORTAL_BAD_CMD_RESPONSE;
-    }
-
-    if(*pszRespBuffer != SOM || nErr != SKYPORTAL_OK)
-        return ERR_CMDFAILED;
-
-    // Read message length
-    nErr = m_pSerx->readFile(pszRespBuffer + 1, 1, ulBytesRead, MAX_TIMEOUT);
-    if (nErr != SKYPORTAL_OK || ulBytesRead!=1)
-        return ERR_CMDFAILED;
-
-    nLen = pszRespBuffer[1];
-#if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 3
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    hexdump(pszRespBuffer, cHexMessage, pszRespBuffer[1]+2, LOG_BUFFER_SIZE);
-    fprintf(Logfile, "[%s] [CSkyPortalWiFiController::readResponse] nLen = %d\n", timestamp, nLen);
-    fflush(Logfile);
-#endif
-
-    // Read the rest of the message
-    nErr = m_pSerx->readFile(pszRespBuffer + 2, nLen + 1, ulBytesRead, MAX_TIMEOUT); // the +1 on nLen is to also read the checksum
-#if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 3
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    hexdump(pszRespBuffer, cHexMessage, pszRespBuffer[1]+2, LOG_BUFFER_SIZE);
-    fprintf(Logfile, "[%s] [CSkyPortalWiFiController::readResponse] ulBytesRead = %lu\n", timestamp, ulBytesRead);
-    fflush(Logfile);
-#endif
-    if(nErr || ulBytesRead != (nLen+1)) {
-#if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 3
-        ltime = time(NULL);
-        timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        hexdump(pszRespBuffer, cHexMessage, pszRespBuffer[1]+2, LOG_BUFFER_SIZE);
-        fprintf(Logfile, "[%s] [CSkyPortalWiFiController::readResponse] error\n", timestamp);
-        fprintf(Logfile, "[%s] [CSkyPortalWiFiController::readResponse] got %s\n", timestamp, cHexMessage);
-        fflush(Logfile);
-#endif
-        return ERR_CMDFAILED;
-    }
-
-    // verify checksum
-    cChecksum = checksum(pszRespBuffer+1, nLen+1);
-    if (cChecksum != *(pszRespBuffer+nLen+2)) {
-        nErr = ERR_CMDFAILED;
-#if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 3
-        ltime = time(NULL);
-        timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(Logfile, "[%s] [CSkyPortalWiFiController::readResponse] Calculated checksume is %02X, message checksum is %02X\n", timestamp, cChecksum, *(pszRespBuffer+nLen+2));
-        fflush(Logfile);
-#endif
-    }
-    return nErr;
+	}
+	return nErr;
 }
 
 
-unsigned char SkyPortalWiFi::checksum(const unsigned char *cMessage, int nLen)
+int SkyPortalWiFi::ReadResponse(Buffer_t RespBuffer, int &nLen)
 {
-    int nIdx;
-    char cChecksum = 0;
+	int nErr = SKYPORTAL_OK;
+	unsigned long ulBytesRead = 0;
+	unsigned char cHexMessage[LOG_BUFFER_SIZE];
+	unsigned char cChecksum;
+	unsigned char pRespBuffer[SERIAL_BUFFER_SIZE];
 
-    for (nIdx = 0; nIdx < nLen && nIdx < SERIAL_BUFFER_SIZE; nIdx++) {
-        cChecksum -= cMessage[nIdx];
-    }
-    return (unsigned char)cChecksum;
+	if(!m_bIsConnected)
+		return ERR_COMMNOLINK;
+
+	memset(pRespBuffer, 0, (size_t) SERIAL_BUFFER_SIZE);
+
+	// Look for a SOM starting character, until timeout occurs
+	while (*pRespBuffer != SOM && nErr == SKYPORTAL_OK) {
+		nErr = m_pSerx->readFile(pRespBuffer, 1, ulBytesRead, MAX_TIMEOUT);
+		if (ulBytesRead !=1) // timeout
+			nErr = SKYPORTAL_BAD_CMD_RESPONSE;
+	}
+
+	if(*pRespBuffer != SOM || nErr != SKYPORTAL_OK)
+		return ERR_CMDFAILED;
+
+	// Read message length
+	nErr = m_pSerx->readFile(pRespBuffer + 1, 1, ulBytesRead, MAX_TIMEOUT);
+	if (nErr != SKYPORTAL_OK || ulBytesRead!=1)
+		return ERR_CMDFAILED;
+
+	nLen = int(pRespBuffer[1]);
+#if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 3
+	ltime = time(NULL);
+	timestamp = asctime(localtime(&ltime));
+	timestamp[strlen(timestamp) - 1] = 0;
+	hexdump(pRespBuffer, cHexMessage, int(pRespBuffer[1])+2, LOG_BUFFER_SIZE);
+	fprintf(Logfile, "[%s] [CCelestronFocus::readResponse] nLen = %d\n", timestamp, nLen);
+	fflush(Logfile);
+#endif
+
+	// Read the rest of the message
+	nErr = m_pSerx->readFile(pRespBuffer + 2, nLen + 1, ulBytesRead, MAX_TIMEOUT); // the +1 on nLen is to also read the checksum
+#if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 3
+	ltime = time(NULL);
+	timestamp = asctime(localtime(&ltime));
+	timestamp[strlen(timestamp) - 1] = 0;
+	hexdump(pRespBuffer, cHexMessage, int(pRespBuffer[1])+2, LOG_BUFFER_SIZE);
+	fprintf(Logfile, "[%s] [CCelestronFocus::readResponse] ulBytesRead = %lu\n", timestamp, ulBytesRead);
+	fflush(Logfile);
+#endif
+	if(nErr || ulBytesRead != (nLen+1)) {
+#if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 3
+		ltime = time(NULL);
+		timestamp = asctime(localtime(&ltime));
+		timestamp[strlen(timestamp) - 1] = 0;
+		hexdump(pRespBuffer, cHexMessage, int(pRespBuffer[1])+2, LOG_BUFFER_SIZE);
+		fprintf(Logfile, "[%s] [CCelestronFocus::readResponse] error\n", timestamp);
+		fprintf(Logfile, "[%s] [CCelestronFocus::readResponse] got %s\n", timestamp, cHexMessage);
+		fflush(Logfile);
+#endif
+		return ERR_CMDFAILED;
+	}
+
+	// verify checksum
+	cChecksum = checksum(pRespBuffer);
+	if (cChecksum != *(pRespBuffer+nLen+2)) {
+		nErr = ERR_CMDFAILED;
+#if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 3
+		ltime = time(NULL);
+		timestamp = asctime(localtime(&ltime));
+		timestamp[strlen(timestamp) - 1] = 0;
+		fprintf(Logfile, "[%s] [CCelestronFocus::readResponse] Calculated checksume is %02X, message checksum is %02X\n", timestamp, cChecksum, *(pRespBuffer+nLen+2));
+		fflush(Logfile);
+#endif
+	}
+	nLen = int(pRespBuffer[1])+2;
+	RespBuffer.assign(pRespBuffer, pRespBuffer+nLen);
+	return nErr;
 }
+
+
+unsigned char SkyPortalWiFi::checksum(const unsigned char *cMessage)
+{
+	int nIdx;
+	char cChecksum = 0;
+
+	for (nIdx = 1; nIdx < cMessage[1]+2; nIdx++) {
+		cChecksum -= cMessage[nIdx];
+	}
+	return (unsigned char)cChecksum;
+}
+
+uint8_t SkyPortalWiFi::checksum(const Buffer_t cMessage)
+{
+	int nIdx;
+	char cChecksum = 0;
+
+	for (nIdx = 1; nIdx < cMessage[1]+2; nIdx++) {
+		cChecksum -= cMessage[nIdx];
+	}
+	return (uint8_t)cChecksum;
+}
+
 
 void SkyPortalWiFi::hexdump(const unsigned char* pszInputBuffer, unsigned char *pszOutputBuffer, int nInputBufferSize, int nOutpuBufferSize)
 {
@@ -320,16 +340,15 @@ void SkyPortalWiFi::hexdump(const unsigned char* pszInputBuffer, unsigned char *
 int SkyPortalWiFi::getFirmwareVersion(char *pszVersion, unsigned int nStrMaxLen)
 {
     int nErr = SKYPORTAL_OK;
-    unsigned char szCmd[SERIAL_BUFFER_SIZE];
-    unsigned char szResp[SERIAL_BUFFER_SIZE];
-    unsigned char cHexMessage[LOG_BUFFER_SIZE];
+    Buffer_t Cmd;
+    Buffer_t Resp;
     char AMZVersion[SERIAL_BUFFER_SIZE];
     char ALTVersion[SERIAL_BUFFER_SIZE];
 
     if(!m_bIsConnected)
         return ERR_COMMNOLINK;
 
-    memset(szCmd,0, SERIAL_BUFFER_SIZE);
+    Cmd.assign (SERIAL_BUFFER_SIZE, 0);
 
 #if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 2
     ltime = time(NULL);
@@ -339,14 +358,14 @@ int SkyPortalWiFi::getFirmwareVersion(char *pszVersion, unsigned int nStrMaxLen)
     fflush(Logfile);
 #endif
 
-    szCmd[0] = SOM;
-    szCmd[MSG_LEN] = 3;
-    szCmd[SRC_DEV] = PC;
-    szCmd[DST_DEV] = AZM;
-    szCmd[CMD_ID] = MC_GET_VER;    //get firmware version
-    szCmd[5] = checksum(szCmd+1, szCmd[MSG_LEN]+1);
+    Cmd[0] = SOM;
+    Cmd[MSG_LEN] = 3;
+    Cmd[SRC_DEV] = PC;
+    Cmd[DST_DEV] = AZM;
+    Cmd[CMD_ID] = MC_GET_VER;    //get firmware version
+    Cmd[5] = checksum(Cmd);
 
-    nErr = SkyPortalWiFiSendCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+    nErr = SendCommand(Cmd, Resp, true);
     if(nErr) {
 #if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 2
         ltime = time(NULL);
@@ -358,7 +377,7 @@ int SkyPortalWiFi::getFirmwareVersion(char *pszVersion, unsigned int nStrMaxLen)
         return nErr;
     }
 
-    snprintf(AMZVersion, nStrMaxLen,"%d.%d", szResp[5] , szResp[6]);
+    snprintf(AMZVersion, nStrMaxLen,"%d.%d", Resp[5] , Resp[6]);
 
 #if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 2
     ltime = time(NULL);
@@ -368,7 +387,8 @@ int SkyPortalWiFi::getFirmwareVersion(char *pszVersion, unsigned int nStrMaxLen)
     fflush(Logfile);
 #endif
 
-    memset(szCmd,0, SERIAL_BUFFER_SIZE);
+	Cmd.assign (SERIAL_BUFFER_SIZE, 0);
+
 
 #if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 2
     ltime = time(NULL);
@@ -378,14 +398,14 @@ int SkyPortalWiFi::getFirmwareVersion(char *pszVersion, unsigned int nStrMaxLen)
     fflush(Logfile);
 #endif
 
-    szCmd[0] = SOM;
-    szCmd[MSG_LEN] = 3;
-    szCmd[SRC_DEV] = PC;
-    szCmd[DST_DEV] = ALT;
-    szCmd[CMD_ID] = MC_GET_VER;    //get firmware version
-    szCmd[5] = checksum(szCmd+1, szCmd[MSG_LEN]+1);
+    Cmd[0] = SOM;
+    Cmd[MSG_LEN] = 3;
+    Cmd[SRC_DEV] = PC;
+    Cmd[DST_DEV] = ALT;
+    Cmd[CMD_ID] = MC_GET_VER;    //get firmware version
+    Cmd[5] = checksum(Cmd);
 
-    nErr = SkyPortalWiFiSendCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+    nErr = SendCommand(Cmd, Resp, true);
     if(nErr) {
 #if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 2
         ltime = time(NULL);
@@ -397,7 +417,7 @@ int SkyPortalWiFi::getFirmwareVersion(char *pszVersion, unsigned int nStrMaxLen)
         return nErr;
     }
 
-    snprintf(ALTVersion, nStrMaxLen,"%d.%d", szResp[5] , szResp[6]);
+    snprintf(ALTVersion, nStrMaxLen,"%d.%d", Resp[5] , Resp[6]);
 
 #if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 2
     ltime = time(NULL);
@@ -559,8 +579,8 @@ int SkyPortalWiFi::getRaAndDec(double &dRa, double &dDec)
 int SkyPortalWiFi::getPosition(int &nAzSteps, int &nAltSteps)
 {
     int nErr = SKYPORTAL_OK;
-    unsigned char szCmd[SERIAL_BUFFER_SIZE];
-    unsigned char szResp[SERIAL_BUFFER_SIZE];
+	Buffer_t Cmd;
+	Buffer_t Resp;
 
 #if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 2
     ltime = time(NULL);
@@ -579,14 +599,14 @@ int SkyPortalWiFi::getPosition(int &nAzSteps, int &nAltSteps)
     fflush(Logfile);
 #endif
     // get AZM
-    szCmd[0] = SOM;
-    szCmd[MSG_LEN] = 3;
-    szCmd[SRC_DEV] = PC;
-    szCmd[DST_DEV] = AZM;
-    szCmd[CMD_ID] = MC_GET_POSITION;
-    szCmd[5] = checksum(szCmd+1, szCmd[MSG_LEN]+1);
+    Cmd[0] = SOM;
+    Cmd[MSG_LEN] = 3;
+    Cmd[SRC_DEV] = PC;
+    Cmd[DST_DEV] = AZM;
+    Cmd[CMD_ID] = MC_GET_POSITION;
+    Cmd[5] = checksum(Cmd);
 
-    nErr = SkyPortalWiFiSendCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+    nErr = SendCommand(Cmd, Resp, true);
     if(nErr) {
 #if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 2
         ltime = time(NULL);
@@ -599,7 +619,7 @@ int SkyPortalWiFi::getPosition(int &nAzSteps, int &nAltSteps)
     }
 
     // convert counters to proper degrees
-    nAzSteps = szResp[5]<<16 | szResp[6]<<8 | szResp[7];
+    nAzSteps = Resp[5]<<16 | Resp[6]<<8 | Resp[7];
 
 #if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 2
     ltime = time(NULL);
@@ -608,15 +628,16 @@ int SkyPortalWiFi::getPosition(int &nAzSteps, int &nAltSteps)
     fprintf(Logfile, "[%s] [CSkyPortalWiFi::getPosition] Get Alt\n", timestamp);
     fflush(Logfile);
 #endif
+	Cmd.assign (SERIAL_BUFFER_SIZE, 0);
     // get ALT
-    szCmd[0] = SOM;
-    szCmd[MSG_LEN] = 3;
-    szCmd[SRC_DEV] = PC;
-    szCmd[DST_DEV] = ALT;
-    szCmd[CMD_ID] = MC_GET_POSITION;
-    szCmd[5] = checksum(szCmd+1, szCmd[MSG_LEN]+1);
+    Cmd[0] = SOM;
+    Cmd[MSG_LEN] = 3;
+    Cmd[SRC_DEV] = PC;
+    Cmd[DST_DEV] = ALT;
+    Cmd[CMD_ID] = MC_GET_POSITION;
+    Cmd[5] = checksum(Cmd);
 
-    nErr = SkyPortalWiFiSendCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+    nErr = SendCommand(Cmd, Resp, true);
     if(nErr) {
 #if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 2
         ltime = time(NULL);
@@ -628,7 +649,7 @@ int SkyPortalWiFi::getPosition(int &nAzSteps, int &nAltSteps)
         return nErr;
     }
     // convert counters to proper degrees
-    nAltSteps = szResp[5]<<16 | szResp[6]<<8 | szResp[7];
+    nAltSteps = Resp[5]<<16 | Resp[6]<<8 | Resp[7];
 
 #if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 2
     ltime = time(NULL);
@@ -646,8 +667,8 @@ int SkyPortalWiFi::setPosition(int nAzSteps, int nAltSteps )
 {
 
     int nErr = SKYPORTAL_OK;
-    unsigned char szCmd[SERIAL_BUFFER_SIZE];
-    unsigned char szResp[SERIAL_BUFFER_SIZE];
+    Buffer_t Cmd;
+    Buffer_t Resp;
 
 #if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 2
     ltime = time(NULL);
@@ -668,16 +689,16 @@ int SkyPortalWiFi::setPosition(int nAzSteps, int nAltSteps )
     fflush(Logfile);
 #endif
     // set AZM
-    szCmd[0] = SOM;
-    szCmd[MSG_LEN] = 6;
-    szCmd[SRC_DEV] = PC;
-    szCmd[DST_DEV] = AZM;
-    szCmd[CMD_ID] = MC_SET_POSITION;
-    szCmd[5] = (unsigned char) ((nAzSteps & 0x00ff0000) >> 16);
-    szCmd[6] = (unsigned char) ((nAzSteps & 0x0000ff00) >> 8);
-    szCmd[7] = (unsigned char)  (nAzSteps & 0x000000ff);
-    szCmd[8] = checksum(szCmd+1, szCmd[MSG_LEN]+1);
-    nErr = SkyPortalWiFiSendCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+    Cmd[0] = SOM;
+    Cmd[MSG_LEN] = 6;
+    Cmd[SRC_DEV] = PC;
+    Cmd[DST_DEV] = AZM;
+    Cmd[CMD_ID] = MC_SET_POSITION;
+    Cmd[5] = (unsigned char) ((nAzSteps & 0x00ff0000) >> 16);
+    Cmd[6] = (unsigned char) ((nAzSteps & 0x0000ff00) >> 8);
+    Cmd[7] = (unsigned char)  (nAzSteps & 0x000000ff);
+    Cmd[8] = checksum(Cmd);
+    nErr = SendCommand(Cmd, Resp, true);
     if(nErr) {
 #if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 2
         ltime = time(NULL);
@@ -697,16 +718,16 @@ int SkyPortalWiFi::setPosition(int nAzSteps, int nAltSteps )
     fflush(Logfile);
 #endif
     // set ALT
-    szCmd[0] = SOM;
-    szCmd[MSG_LEN] = 6;
-    szCmd[SRC_DEV] = PC;
-    szCmd[DST_DEV] = ALT;
-    szCmd[CMD_ID] = MC_SET_POSITION;
-    szCmd[5] = (unsigned char) ((nAltSteps & 0x00ff0000) >> 16);
-    szCmd[6] = (unsigned char) ((nAltSteps & 0x0000ff00) >> 8);
-    szCmd[7] = (unsigned char)  (nAltSteps & 0x000000ff);
-    szCmd[8] = checksum(szCmd+1, szCmd[MSG_LEN]+1);
-    nErr = SkyPortalWiFiSendCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+    Cmd[0] = SOM;
+    Cmd[MSG_LEN] = 6;
+    Cmd[SRC_DEV] = PC;
+    Cmd[DST_DEV] = ALT;
+    Cmd[CMD_ID] = MC_SET_POSITION;
+    Cmd[5] = (unsigned char) ((nAltSteps & 0x00ff0000) >> 16);
+    Cmd[6] = (unsigned char) ((nAltSteps & 0x0000ff00) >> 8);
+    Cmd[7] = (unsigned char)  (nAltSteps & 0x000000ff);
+    Cmd[8] = checksum(Cmd);
+    nErr = SendCommand(Cmd, Resp, true);
     if(nErr) {
 #if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 2
         ltime = time(NULL);
@@ -998,8 +1019,8 @@ int SkyPortalWiFi::startSlewTo(double dRa, double dDec, bool bFast)
 {
     int nErr = SKYPORTAL_OK;
     bool bAligned;
-    unsigned char szCmd[SERIAL_BUFFER_SIZE];
-    unsigned char szResp[SERIAL_BUFFER_SIZE];
+    Buffer_t Cmd;
+    Buffer_t Resp;
 
     double dAlt, dAz;
     int nAltPos, nAzPos;
@@ -1015,19 +1036,19 @@ int SkyPortalWiFi::startSlewTo(double dRa, double dDec, bool bFast)
     m_dGotoRATarget = dRa;
     m_dGotoDECTarget = dDec;
 
-    szCmd[0] = SOM;
-    szCmd[MSG_LEN] = 6;
-    szCmd[SRC_DEV] = PC;
+    Cmd[0] = SOM;
+    Cmd[MSG_LEN] = 6;
+    Cmd[SRC_DEV] = PC;
     if(bFast)
-        szCmd[CMD_ID] = MC_GOTO_FAST;
+        Cmd[CMD_ID] = MC_GOTO_FAST;
     else
-        szCmd[CMD_ID] = MC_GOTO_SLOW;
+        Cmd[CMD_ID] = MC_GOTO_SLOW;
 
 
-    szCmd[0] = SOM;
-    szCmd[MSG_LEN] = 6;
-    szCmd[SRC_DEV] = PC;
-    szCmd[CMD_ID] = MC_SET_POSITION;
+    Cmd[0] = SOM;
+    Cmd[MSG_LEN] = 6;
+    Cmd[SRC_DEV] = PC;
+    Cmd[CMD_ID] = MC_SET_POSITION;
 
     nErr = isAligned(bAligned);
     if(nErr)
@@ -1035,7 +1056,7 @@ int SkyPortalWiFi::startSlewTo(double dRa, double dDec, bool bFast)
 
     if(m_bMountIsGEM) {     //// Equatorial //////
         // do Az (Ra)
-        szCmd[DST_DEV] = AZM;
+        Cmd[DST_DEV] = AZM;
         degToSteps(dRa, nAzPos);
 #if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 2
         ltime = time(NULL);
@@ -1044,11 +1065,11 @@ int SkyPortalWiFi::startSlewTo(double dRa, double dDec, bool bFast)
         fprintf(Logfile, "[%s] [SkyPortalWiFi::startSlewTo] Slewing to nAzPos = %d\n", timestamp, nAzPos);
         fflush(Logfile);
 #endif
-        szCmd[5] = (unsigned char)((nAzPos & 0x00ff0000) >> 16);
-        szCmd[6] = (unsigned char)((nAzPos & 0x0000ff00) >> 8);
-        szCmd[7] = (unsigned char)( nAzPos & 0x000000ff);
-        szCmd[8] = checksum(szCmd+1, szCmd[MSG_LEN]+1);
-        nErr = SkyPortalWiFiSendCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+        Cmd[5] = (unsigned char)((nAzPos & 0x00ff0000) >> 16);
+        Cmd[6] = (unsigned char)((nAzPos & 0x0000ff00) >> 8);
+        Cmd[7] = (unsigned char)( nAzPos & 0x000000ff);
+        Cmd[8] = checksum(Cmd);
+        nErr = SendCommand(Cmd, Resp, true);
         if(nErr) {
 #if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 2
             ltime = time(NULL);
@@ -1060,7 +1081,7 @@ int SkyPortalWiFi::startSlewTo(double dRa, double dDec, bool bFast)
             return nErr;
         }
         // do Alt (Dec)
-        szCmd[DST_DEV] = ALT;
+        Cmd[DST_DEV] = ALT;
         degToSteps(dDec, nAltPos);
 #if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 2
         ltime = time(NULL);
@@ -1069,11 +1090,11 @@ int SkyPortalWiFi::startSlewTo(double dRa, double dDec, bool bFast)
         fprintf(Logfile, "[%s] [SkyPortalWiFi::startSlewTo] Slewing to nAltPos = %d\n", timestamp, nAltPos);
         fflush(Logfile);
 #endif
-        szCmd[5] = (unsigned char)((nAltPos & 0x00ff0000) >> 16);
-        szCmd[6] = (unsigned char)((nAltPos & 0x0000ff00) >> 8);
-        szCmd[7] = (unsigned char)( nAltPos & 0x000000ff);
-        szCmd[8] = checksum(szCmd+1, szCmd[MSG_LEN]+1);
-        nErr = SkyPortalWiFiSendCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+        Cmd[5] = (unsigned char)((nAltPos & 0x00ff0000) >> 16);
+        Cmd[6] = (unsigned char)((nAltPos & 0x0000ff00) >> 8);
+        Cmd[7] = (unsigned char)( nAltPos & 0x000000ff);
+        Cmd[8] = checksum(Cmd);
+        nErr = SendCommand(Cmd, Resp, true);
         if(nErr) {
 #if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 2
             ltime = time(NULL);
@@ -1096,7 +1117,7 @@ int SkyPortalWiFi::startSlewTo(double dRa, double dDec, bool bFast)
         fflush(Logfile);
 #endif
         // do Az
-        szCmd[DST_DEV] = AZM;
+        Cmd[DST_DEV] = AZM;
         degToSteps(dAz, nAzPos);
 #if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 2
         ltime = time(NULL);
@@ -1105,11 +1126,11 @@ int SkyPortalWiFi::startSlewTo(double dRa, double dDec, bool bFast)
         fprintf(Logfile, "[%s] [SkyPortalWiFi::startSlewTo] Slewing to nAzPos = %d\n", timestamp, nAzPos);
         fflush(Logfile);
 #endif
-        szCmd[5] = (unsigned char)((nAzPos & 0x00ff0000) >> 16);
-        szCmd[6] = (unsigned char)((nAzPos & 0x0000ff00) >> 8);
-        szCmd[7] = (unsigned char)( nAzPos & 0x000000ff);
-        szCmd[8] = checksum(szCmd+1, szCmd[MSG_LEN]+1);
-        nErr = SkyPortalWiFiSendCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+        Cmd[5] = (unsigned char)((nAzPos & 0x00ff0000) >> 16);
+        Cmd[6] = (unsigned char)((nAzPos & 0x0000ff00) >> 8);
+        Cmd[7] = (unsigned char)( nAzPos & 0x000000ff);
+        Cmd[8] = checksum(Cmd);
+        nErr = SendCommand(Cmd, Resp, true);
         if(nErr) {
 #if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 2
             ltime = time(NULL);
@@ -1121,7 +1142,7 @@ int SkyPortalWiFi::startSlewTo(double dRa, double dDec, bool bFast)
             return nErr;
         }
         // do Alt
-        szCmd[DST_DEV] = ALT;
+        Cmd[DST_DEV] = ALT;
         degToSteps(dAlt, nAltPos);
 #if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 2
         ltime = time(NULL);
@@ -1130,11 +1151,11 @@ int SkyPortalWiFi::startSlewTo(double dRa, double dDec, bool bFast)
         fprintf(Logfile, "[%s] [SkyPortalWiFi::startSlewTo] Slewing to nAltPos = %d\n", timestamp, nAltPos);
         fflush(Logfile);
 #endif
-        szCmd[5] = (unsigned char)((nAltPos & 0x00ff0000) >> 16);
-        szCmd[6] = (unsigned char)((nAltPos & 0x0000ff00) >> 8);
-        szCmd[7] = (unsigned char)( nAltPos & 0x000000ff);
-        szCmd[8] = checksum(szCmd+1, szCmd[MSG_LEN]+1);
-        nErr = SkyPortalWiFiSendCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+        Cmd[5] = (unsigned char)((nAltPos & 0x00ff0000) >> 16);
+        Cmd[6] = (unsigned char)((nAltPos & 0x0000ff00) >> 8);
+        Cmd[7] = (unsigned char)( nAltPos & 0x000000ff);
+        Cmd[8] = checksum(Cmd);
+        nErr = SendCommand(Cmd, Resp, true);
         if(nErr) {
 #if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 2
             ltime = time(NULL);
@@ -1159,15 +1180,15 @@ int SkyPortalWiFi::startSlewTo(double dRa, double dDec, bool bFast)
 int SkyPortalWiFi::startOpenSlew(const MountDriverInterface::MoveDir Dir, unsigned int nRate)
 {
     int nErr = SKYPORTAL_OK;
-    unsigned char szCmd[SERIAL_BUFFER_SIZE];
-    unsigned char szResp[SERIAL_BUFFER_SIZE];
+    Buffer_t Cmd;
+    Buffer_t Resp;
     int nSlewRate;
 
     m_nOpenLoopDir = Dir;
 
-    szCmd[0] = SOM;
-    szCmd[MSG_LEN] = 3;
-    szCmd[SRC_DEV] = PC;
+    Cmd[0] = SOM;
+    Cmd[MSG_LEN] = 3;
+    Cmd[SRC_DEV] = PC;
 
 #if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 2
     ltime = time(NULL);
@@ -1192,31 +1213,31 @@ int SkyPortalWiFi::startOpenSlew(const MountDriverInterface::MoveDir Dir, unsign
     // figure out direction
     switch(Dir){
         case MountDriverInterface::MD_NORTH:
-            szCmd[DST_DEV] = ALT;
-            szCmd[CMD_ID] = MC_MOVE_POS;
+            Cmd[DST_DEV] = ALT;
+            Cmd[CMD_ID] = MC_MOVE_POS;
             break;
         case MountDriverInterface::MD_SOUTH:
-            szCmd[DST_DEV] = ALT;
-            szCmd[CMD_ID] = MC_MOVE_NEG;
+            Cmd[DST_DEV] = ALT;
+            Cmd[CMD_ID] = MC_MOVE_NEG;
             break;
         case MountDriverInterface::MD_EAST:
-            szCmd[DST_DEV] = AZM;
-            szCmd[CMD_ID] = MC_MOVE_POS;
+            Cmd[DST_DEV] = AZM;
+            Cmd[CMD_ID] = MC_MOVE_POS;
             break;
         case MountDriverInterface::MD_WEST:
-            szCmd[DST_DEV] = AZM;
-            szCmd[CMD_ID] = MC_MOVE_NEG;
+            Cmd[DST_DEV] = AZM;
+            Cmd[CMD_ID] = MC_MOVE_NEG;
             break;
     }
-    szCmd[5] = nSlewRate & 0xFF;
-    szCmd[6] = checksum(szCmd+1, szCmd[MSG_LEN]+1);
-    nErr = SkyPortalWiFiSendCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+    Cmd[5] = nSlewRate & 0xFF;
+    Cmd[6] = checksum(Cmd);
+    nErr = SendCommand(Cmd, Resp, true);
     if(nErr) {
 #if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 2
         ltime = time(NULL);
         timestamp = asctime(localtime(&ltime));
         timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(Logfile, "[%s] [SkyPortalWiFi::startOpenSlew] ERROR Slewing in dir %d on axis  %d : %d\n", timestamp, szCmd[CMD_ID], szCmd[DST_DEV], nErr);
+        fprintf(Logfile, "[%s] [SkyPortalWiFi::startOpenSlew] ERROR Slewing in dir %d on axis  %d : %d\n", timestamp, Cmd[CMD_ID], Cmd[DST_DEV], nErr);
         fflush(Logfile);
 #endif
         return nErr;
@@ -1228,8 +1249,8 @@ int SkyPortalWiFi::startOpenSlew(const MountDriverInterface::MoveDir Dir, unsign
 int SkyPortalWiFi::stopOpenLoopMove()
 {
     int nErr = SKYPORTAL_OK;
-    unsigned char szCmd[SERIAL_BUFFER_SIZE];
-    unsigned char szResp[SERIAL_BUFFER_SIZE];
+    Buffer_t Cmd;
+    Buffer_t Resp;
 
 #if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 2
     ltime = time(NULL);
@@ -1241,25 +1262,25 @@ int SkyPortalWiFi::stopOpenLoopMove()
 
     switch(m_nOpenLoopDir){
         case MountDriverInterface::MD_NORTH:
-            szCmd[DST_DEV] = ALT;
-            szCmd[CMD_ID] = MC_MOVE_POS;
+            Cmd[DST_DEV] = ALT;
+            Cmd[CMD_ID] = MC_MOVE_POS;
             break;
         case MountDriverInterface::MD_SOUTH:
-            szCmd[DST_DEV] = ALT;
-            szCmd[CMD_ID] = MC_MOVE_NEG;
+            Cmd[DST_DEV] = ALT;
+            Cmd[CMD_ID] = MC_MOVE_NEG;
             break;
         case MountDriverInterface::MD_EAST:
-            szCmd[DST_DEV] = AZM;
-            szCmd[CMD_ID] = MC_MOVE_POS;
+            Cmd[DST_DEV] = AZM;
+            Cmd[CMD_ID] = MC_MOVE_POS;
             break;
         case MountDriverInterface::MD_WEST:
-            szCmd[DST_DEV] = AZM;
-            szCmd[CMD_ID] = MC_MOVE_NEG;
+            Cmd[DST_DEV] = AZM;
+            Cmd[CMD_ID] = MC_MOVE_NEG;
             break;
     }
-    szCmd[5] = 0; // stop
-    szCmd[6] = checksum(szCmd+1, szCmd[MSG_LEN]+1);
-    nErr = SkyPortalWiFiSendCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+    Cmd[5] = 0; // stop
+    Cmd[6] = checksum(Cmd);
+    nErr = SendCommand(Cmd, Resp, true);
     if(nErr)
         return nErr;
 
@@ -1271,9 +1292,9 @@ int SkyPortalWiFi::stopOpenLoopMove()
 int SkyPortalWiFi::isSlewToComplete(bool &bComplete)
 {
     int nErr = SKYPORTAL_OK;
-    unsigned char szCmd[SERIAL_BUFFER_SIZE];
-    unsigned char szResp[SERIAL_BUFFER_SIZE];
-    unsigned char cHexMessage[LOG_BUFFER_SIZE];
+    Buffer_t Cmd;
+    Buffer_t Resp;
+    unsigned char szHexMessage[LOG_BUFFER_SIZE];
     bool bAzComplete, baltComplete;
 
     bComplete = false;
@@ -1289,39 +1310,40 @@ int SkyPortalWiFi::isSlewToComplete(bool &bComplete)
     ltime = time(NULL);
     timestamp = asctime(localtime(&ltime));
     timestamp[strlen(timestamp) - 1] = 0;
-    hexdump(szCmd, cHexMessage, szCmd[MSG_LEN]+3, LOG_BUFFER_SIZE);
+	hexdump(Cmd.data(), szHexMessage, (int)(Cmd[1])+3, LOG_BUFFER_SIZE);
+
     fprintf(Logfile, "[%s] [SkyPortalWiFi::isSlewToComplete]\n", timestamp);
     fflush(Logfile);
 #endif
 
     // check slew on AZM
-    szCmd[0] = SOM;
-    szCmd[MSG_LEN] = 3;
-    szCmd[SRC_DEV] = PC;
-    szCmd[DST_DEV] = AZM;
-    szCmd[CMD_ID] = MC_SLEW_DONE;
-    szCmd[5] = checksum(szCmd+1, szCmd[MSG_LEN]+1);
+    Cmd[0] = SOM;
+    Cmd[MSG_LEN] = 3;
+    Cmd[SRC_DEV] = PC;
+    Cmd[DST_DEV] = AZM;
+    Cmd[CMD_ID] = MC_SLEW_DONE;
+    Cmd[5] = checksum(Cmd);
 
-    nErr = SkyPortalWiFiSendCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+    nErr = SendCommand(Cmd, Resp, true);
     if(nErr)
         return nErr;
 
-    if(szResp[5] == 0xFF)
+    if(Resp[5] == 0xFF)
         baltComplete = true;
 
     // check slew on alt
-    szCmd[0] = SOM;
-    szCmd[MSG_LEN] = 3;
-    szCmd[SRC_DEV] = PC;
-    szCmd[DST_DEV] = ALT;
-    szCmd[CMD_ID] = MC_SLEW_DONE;
-    szCmd[5] = checksum(szCmd+1, szCmd[MSG_LEN]+1);
+    Cmd[0] = SOM;
+    Cmd[MSG_LEN] = 3;
+    Cmd[SRC_DEV] = PC;
+    Cmd[DST_DEV] = ALT;
+    Cmd[CMD_ID] = MC_SLEW_DONE;
+    Cmd[5] = checksum(Cmd);
 
-    nErr = SkyPortalWiFiSendCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+    nErr = SendCommand(Cmd, Resp, true);
     if(nErr)
         return nErr;
 
-    if(szResp[5] == 0xFF)
+    if(Resp[5] == 0xFF)
         bAzComplete = true;
 
     bComplete = bAzComplete & baltComplete;
@@ -1330,7 +1352,7 @@ int SkyPortalWiFi::isSlewToComplete(bool &bComplete)
     ltime = time(NULL);
     timestamp = asctime(localtime(&ltime));
     timestamp[strlen(timestamp) - 1] = 0;
-    hexdump(szCmd, cHexMessage, szCmd[MSG_LEN]+3, LOG_BUFFER_SIZE);
+	hexdump(Cmd.data(), szHexMessage, (int)(Cmd[1])+3, LOG_BUFFER_SIZE);
     fprintf(Logfile, "[%s] SkyPortalWiFi::isSlewToComplete baltComplete = %s\n", timestamp, baltComplete?"Yes":"No");
     fprintf(Logfile, "[%s] SkyPortalWiFi::isSlewToComplete bAzComplete  = %s\n", timestamp, bAzComplete?"Yes":"No");
     fprintf(Logfile, "[%s] SkyPortalWiFi::isSlewToComplete bComplete    = %s\n", timestamp, bComplete?"Yes":"No");
@@ -1475,8 +1497,8 @@ int SkyPortalWiFi::Abort()
 int SkyPortalWiFi::moveAz(int nSteps)
 {
     int nErr = SKYPORTAL_OK;
-    unsigned char szCmd[SERIAL_BUFFER_SIZE];
-    unsigned char szResp[SERIAL_BUFFER_SIZE];
+    Buffer_t Cmd;
+    Buffer_t Resp;
     unsigned char cCmd = MC_MOVE_POS;
 
     if(nSteps<0) {
@@ -1485,25 +1507,25 @@ int SkyPortalWiFi::moveAz(int nSteps)
     }
 
     // set AZM
-    szCmd[0] = SOM;
-    szCmd[MSG_LEN] = 6;
-    szCmd[SRC_DEV] = PC;
-    szCmd[DST_DEV] = AZM;
-    szCmd[CMD_ID] = cCmd;
-    szCmd[5] = (unsigned char)((nSteps & 0x00ff0000) >> 16);
-    szCmd[6] = (unsigned char)((nSteps & 0x0000ff00) >> 8);
-    szCmd[7] = (unsigned char)( nSteps & 0x000000ff);
-    szCmd[8] = checksum(szCmd+1, szCmd[MSG_LEN]+1);
+    Cmd[0] = SOM;
+    Cmd[MSG_LEN] = 6;
+    Cmd[SRC_DEV] = PC;
+    Cmd[DST_DEV] = AZM;
+    Cmd[CMD_ID] = cCmd;
+    Cmd[5] = (unsigned char)((nSteps & 0x00ff0000) >> 16);
+    Cmd[6] = (unsigned char)((nSteps & 0x0000ff00) >> 8);
+    Cmd[7] = (unsigned char)( nSteps & 0x000000ff);
+    Cmd[8] = checksum(Cmd);
 
-    nErr = SkyPortalWiFiSendCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+    nErr = SendCommand(Cmd, Resp, true);
     return nErr;
 }
 
 int SkyPortalWiFi::moveAlt(int nSteps)
 {
     int nErr = SKYPORTAL_OK;
-    unsigned char szCmd[SERIAL_BUFFER_SIZE];
-    unsigned char szResp[SERIAL_BUFFER_SIZE];
+    Buffer_t Cmd;
+    Buffer_t Resp;
     unsigned char cCmd = MC_MOVE_POS;
 
     if(nSteps<0) {
@@ -1511,17 +1533,17 @@ int SkyPortalWiFi::moveAlt(int nSteps)
         cCmd = MC_MOVE_NEG;
     }
     // set ALT
-    szCmd[0] = SOM;
-    szCmd[MSG_LEN] = 6;
-    szCmd[SRC_DEV] = PC;
-    szCmd[DST_DEV] = ALT;
-    szCmd[CMD_ID] = cCmd;
-    szCmd[5] = (unsigned char)((nSteps & 0x00ff0000) >> 16);
-    szCmd[6] = (unsigned char)((nSteps & 0x0000ff00) >> 8);
-    szCmd[7] = (unsigned char)( nSteps & 0x000000ff);
-    szCmd[8] = checksum(szCmd+1, szCmd[MSG_LEN]+1);
+    Cmd[0] = SOM;
+    Cmd[MSG_LEN] = 6;
+    Cmd[SRC_DEV] = PC;
+    Cmd[DST_DEV] = ALT;
+    Cmd[CMD_ID] = cCmd;
+    Cmd[5] = (unsigned char)((nSteps & 0x00ff0000) >> 16);
+    Cmd[6] = (unsigned char)((nSteps & 0x0000ff00) >> 8);
+    Cmd[7] = (unsigned char)( nSteps & 0x000000ff);
+    Cmd[8] = checksum(Cmd);
 
-    nErr = SkyPortalWiFiSendCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+    nErr = SendCommand(Cmd, Resp, true);
 
     return nErr;
 }
@@ -1531,8 +1553,8 @@ int SkyPortalWiFi::moveAlt(int nSteps)
 int SkyPortalWiFi::setTrackingRatesSteps( int nAzRate, int nAltRate, int nDataLen)
 {
     int nErr = SKYPORTAL_OK;
-    unsigned char szCmd[SERIAL_BUFFER_SIZE];
-    unsigned char szResp[SERIAL_BUFFER_SIZE];
+    Buffer_t Cmd;
+    Buffer_t Resp;
     unsigned char cCmd;
 
 #if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 2
@@ -1565,23 +1587,23 @@ int SkyPortalWiFi::setTrackingRatesSteps( int nAzRate, int nAltRate, int nDataLe
 #endif
 
     // set AZM
-    szCmd[0] = SOM;
-    szCmd[MSG_LEN] = 3 + nDataLen;
-    szCmd[SRC_DEV] = PC;
-    szCmd[DST_DEV] = AZM;
-    szCmd[CMD_ID] = cCmd;
+    Cmd[0] = SOM;
+    Cmd[MSG_LEN] = 3 + nDataLen;
+    Cmd[SRC_DEV] = PC;
+    Cmd[DST_DEV] = AZM;
+    Cmd[CMD_ID] = cCmd;
     if(nDataLen==2) {
-        szCmd[5] = (unsigned char)((nAzRate & 0x0000ff00) >> 8);
-        szCmd[6] = (unsigned char)(nAzRate & 0x000000ff);
-        szCmd[7] = checksum(szCmd+1, szCmd[MSG_LEN]+1);
+        Cmd[5] = (unsigned char)((nAzRate & 0x0000ff00) >> 8);
+        Cmd[6] = (unsigned char)(nAzRate & 0x000000ff);
+        Cmd[7] = checksum(Cmd);
     }
     else if (nDataLen == 3) {
-        szCmd[5] = (unsigned char)((nAzRate & 0x00ff0000) >> 16);
-        szCmd[6] = (unsigned char)((nAzRate & 0x0000ff00) >> 8);
-        szCmd[7] = (unsigned char)(nAzRate & 0x000000ff);
-        szCmd[8] = checksum(szCmd+1, szCmd[MSG_LEN]+1);
+        Cmd[5] = (unsigned char)((nAzRate & 0x00ff0000) >> 16);
+        Cmd[6] = (unsigned char)((nAzRate & 0x0000ff00) >> 8);
+        Cmd[7] = (unsigned char)(nAzRate & 0x000000ff);
+        Cmd[8] = checksum(Cmd);
     }
-    nErr = SkyPortalWiFiSendCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+    nErr = SendCommand(Cmd, Resp, true);
     if(nErr) {
 #if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 2
         ltime = time(NULL);
@@ -1608,23 +1630,23 @@ int SkyPortalWiFi::setTrackingRatesSteps( int nAzRate, int nAltRate, int nDataLe
 #endif
 
     // set ALT
-    szCmd[0] = SOM;
-    szCmd[MSG_LEN] = 3+nDataLen;
-    szCmd[SRC_DEV] = PC;
-    szCmd[DST_DEV] = ALT;
-    szCmd[CMD_ID] = cCmd;
+    Cmd[0] = SOM;
+    Cmd[MSG_LEN] = 3+nDataLen;
+    Cmd[SRC_DEV] = PC;
+    Cmd[DST_DEV] = ALT;
+    Cmd[CMD_ID] = cCmd;
     if(nDataLen==2) {
-        szCmd[5] = (unsigned char)((nAltRate & 0x0000ff00) >> 8);
-        szCmd[6] = (unsigned char)(nAltRate & 0x000000ff);
-        szCmd[7] = checksum(szCmd+1, szCmd[MSG_LEN]+1);
+        Cmd[5] = (unsigned char)((nAltRate & 0x0000ff00) >> 8);
+        Cmd[6] = (unsigned char)(nAltRate & 0x000000ff);
+        Cmd[7] = checksum(Cmd);
     }
     else if (nDataLen == 3) {
-        szCmd[5] = (unsigned char)((nAltRate & 0x00ff0000) >> 16);
-        szCmd[6] = (unsigned char)((nAltRate & 0x0000ff00) >> 8);
-        szCmd[7] = (unsigned char)( nAltRate & 0x000000ff);
-        szCmd[8] = checksum(szCmd+1, szCmd[MSG_LEN]+1);
+        Cmd[5] = (unsigned char)((nAltRate & 0x00ff0000) >> 16);
+        Cmd[6] = (unsigned char)((nAltRate & 0x0000ff00) >> 8);
+        Cmd[7] = (unsigned char)( nAltRate & 0x000000ff);
+        Cmd[8] = checksum(Cmd);
     }
-    nErr = SkyPortalWiFiSendCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+    nErr = SendCommand(Cmd, Resp, true);
     if(nErr) {
 #if defined SKYPORTAL_DEBUG && SKYPORTAL_DEBUG >= 2
         ltime = time(NULL);

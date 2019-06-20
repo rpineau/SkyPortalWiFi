@@ -28,7 +28,7 @@
 #include "StopWatch.h"
 
 
-#define SKYPORTAL_DEBUG 2   // define this to have log files, 1 = bad stuff only, 2 and up.. full debug
+#define SKYPORTAL_DEBUG 3   // define this to have log files, 1 = bad stuff only, 2 and up.. full debug
 
 enum SkyPortalWiFiErrors {SKYPORTAL_OK=0, NOT_CONNECTED, SKYPORTAL_CANT_CONNECT, SKYPORTAL_BAD_CMD_RESPONSE, COMMAND_FAILED, SKYPORTAL_ERROR};
 
@@ -37,11 +37,6 @@ enum SkyPortalWiFiErrors {SKYPORTAL_OK=0, NOT_CONNECTED, SKYPORTAL_CANT_CONNECT,
 #define LOG_BUFFER_SIZE 1024
 
 #define SOM     0x3B
-#define PC      0x20    // we're sending from AUX address 0x20
-#define AZM     0x10
-#define ALT     0x11
-#define GPS     0xb0
-
 #define MSG_LEN 1
 #define SRC_DEV 2
 #define DST_DEV 3
@@ -54,6 +49,16 @@ enum SkyPortalWiFiErrors {SKYPORTAL_OK=0, NOT_CONNECTED, SKYPORTAL_CANT_CONNECT,
 #define STEPS_PER_REVOLUTION    16777216
 #define STEPS_PER_DEGREE        (STEPS_PER_REVOLUTION / 360.0)
 #define TRACK_SCALE             60000 / STEPS_PER_DEGREE
+
+typedef std::vector<uint8_t> Buffer_t;
+
+
+enum Targets {
+	PC = 0x20,	// we're sending from AUX address 0x20
+	AZM = 0x10,
+	ALT = 0x11,
+	GPS = 0xb0
+};
 
 enum MC_Commands
 {
@@ -199,10 +204,14 @@ private:
     double  m_dHoursEast;
     double  m_dHoursWest;
     
-    int     SkyPortalWiFiSendCommand(const unsigned char *pszCmd, unsigned char *pszResult, int nResultMaxLen);
-    int     SkyPortalWiFiReadResponse(unsigned char *pszRespBuffer, int nBufferLen);
-    unsigned char checksum(const unsigned char *cMessage, int nLen);
     void    hexdump(const unsigned char* pszInputBuffer, unsigned char *pszOutputBuffer, int nInputBufferSize, int nOutpuBufferSize);
+
+	int     SendCommand(const Buffer_t Cmd, Buffer_t Resp, const bool bExpectResponse);
+	int     ReadResponse(Buffer_t RespBuffer, int &nlen);
+
+	unsigned char checksum(const unsigned char *cMessage);
+	uint8_t checksum(const Buffer_t cMessage);
+
 
     int     getPosition(int &nAzSteps, int &nAltSteps);
     int     setPosition(int nAzSteps, int nAltSteps);
