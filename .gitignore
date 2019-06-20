@@ -1,0 +1,15 @@
+xcuserdata
+*.xcuserdatad
+*.xcworkspace
+.DS_Store
+build
+*.opensdf
+*.sdf
+.vs
+Release
+*.pkg
+*.so
+*.zip
+*.VC.db
+*.exe
+*.VC.*
