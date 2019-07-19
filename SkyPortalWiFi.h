@@ -28,9 +28,9 @@
 #include "StopWatch.h"
 
 
-#define SKYPORTAL_DEBUG 3   // define this to have log files, 1 = bad stuff only, 2 and up.. full debug
+#define PLUGIN_DEBUG 3   // define this to have log files, 1 = bad stuff only, 2 and up.. full debug
 
-enum SkyPortalWiFiErrors {SKYPORTAL_OK=0, NOT_CONNECTED, SKYPORTAL_CANT_CONNECT, SKYPORTAL_BAD_CMD_RESPONSE, COMMAND_FAILED, SKYPORTAL_ERROR};
+enum SkyPortalWiFiErrors {PLUGIN_OK=0, NOT_CONNECTED, SKYPORTAL_CANT_CONNECT, SKYPORTAL_BAD_CMD_RESPONSE, COMMAND_FAILED, SKYPORTAL_ERROR};
 
 #define SERIAL_BUFFER_SIZE 1024
 #define MAX_TIMEOUT 1000
@@ -204,13 +204,14 @@ private:
     double  m_dHoursEast;
     double  m_dHoursWest;
     
-    void    hexdump(const unsigned char* pszInputBuffer, unsigned char *pszOutputBuffer, int nInputBufferSize, int nOutpuBufferSize);
-
-	int     SendCommand(const Buffer_t Cmd, Buffer_t Resp, const bool bExpectResponse);
-	int     ReadResponse(Buffer_t RespBuffer, int &nlen);
+	int     SendCommand(const Buffer_t Cmd, Buffer_t &Resp, const bool bExpectResponse);
+	int     ReadResponse(Buffer_t &RespBuffer, uint8_t &nTarget, int &nlen);
 
 	unsigned char checksum(const unsigned char *cMessage);
 	uint8_t checksum(const Buffer_t cMessage);
+
+	void    hexdump(const unsigned char* pszInputBuffer, unsigned char *pszOutputBuffer, int nInputBufferSize, int nOutpuBufferSize);
+	
 
 
     int     getPosition(int &nAzSteps, int &nAltSteps);
@@ -250,7 +251,7 @@ private:
     double          m_dParkDec;
 
 
-#ifdef SKYPORTAL_DEBUG
+#ifdef PLUGIN_DEBUG
     std::string m_sLogfilePath;
 	// timestamp for logs
     char *timestamp;
