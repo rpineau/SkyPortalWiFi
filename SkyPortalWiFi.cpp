@@ -140,7 +140,7 @@ int SkyPortalWiFi::getNbSlewRates()
 int SkyPortalWiFi::getRateName(int nZeroBasedIndex, char *pszOut, unsigned int nOutMaxSize)
 {
     if (nZeroBasedIndex > SkyPortalWiFi_NB_SLEW_SPEEDS)
-        return SKYPORTAL_ERROR;
+        return PLUGIN_ERROR;
 
     strncpy(pszOut, m_aszSlewRateNames[nZeroBasedIndex], nOutMaxSize);
 

@@ -34,8 +34,23 @@ X2Mount::X2Mount(const char* pszDriverSelection,
 #endif
 	LogFile = fopen(m_sLogfilePath.c_str(), "w");
 #endif
-	
-	
+
+
+	#ifdef SkyPortalWiFi_X2_DEBUG
+	if (LogFile) {
+		time_t ltime = time(NULL);
+		char *timestamp = asctime(localtime(&ltime));
+		timestamp[strlen(timestamp) - 1] = 0;
+		fprintf(LogFile, "[%s] pszDriverSelection = '%s'\n", timestamp, pszDriverSelection);
+		fflush(LogFile);
+	}
+	#endif
+	 if(strstr(pszDriverSelection,"Equatorial")) {
+		mSkyPortalWiFi.setMountMode(true);
+	 }
+	 else {
+		 mSkyPortalWiFi.setMountMode(false);
+	 }
 	m_bSynced = false;
 	m_bParked = false;
     m_bLinked = false;

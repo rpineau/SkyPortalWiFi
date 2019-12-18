@@ -21,7 +21,6 @@
 #include "../../licensedinterfaces/theskyxfacadefordriversinterface.h"
 #include "../../licensedinterfaces/sleeperinterface.h"
 #include "../../licensedinterfaces/serxinterface.h"
-// #include "../../licensedinterfaces/loggerinterface.h"
 #include "../../licensedinterfaces/mountdriverinterface.h"
 #include "../../licensedinterfaces/mount/asymmetricalequatorialinterface.h"
 
@@ -30,7 +29,7 @@
 
 #define PLUGIN_DEBUG 3   // define this to have log files, 1 = bad stuff only, 2 and up.. full debug
 
-enum SkyPortalWiFiErrors {PLUGIN_OK=0, NOT_CONNECTED, SKYPORTAL_CANT_CONNECT, SKYPORTAL_BAD_CMD_RESPONSE, COMMAND_FAILED, SKYPORTAL_ERROR};
+enum SkyPortalWiFiErrors {PLUGIN_OK=0, NOT_CONNECTED, PLUGIN_CANT_CONNECT, PLUGIN_BAD_CMD_RESPONSE, COMMAND_FAILED, PLUGIN_ERROR};
 
 #define SERIAL_BUFFER_SIZE 1024
 #define MAX_TIMEOUT 1000

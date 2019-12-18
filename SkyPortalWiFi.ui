@@ -108,22 +108,6 @@
       <property name="title">
        <string>Settings</string>
       </property>
-      <widget class="QLabel" name="label_7">
-       <property name="geometry">
-        <rect>
-         <x>16</x>
-         <y>24</y>
-         <width>88</width>
-         <height>24</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Mount type :</string>
-       </property>
-       <property name="alignment">
-        <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-       </property>
-      </widget>
       <widget class="QCheckBox" name="enableCordWrap">
        <property name="geometry">
         <rect>
@@ -167,32 +151,6 @@
        </property>
        <property name="alignment">
         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-       </property>
-      </widget>
-      <widget class="QRadioButton" name="radioButton">
-       <property name="geometry">
-        <rect>
-         <x>104</x>
-         <y>24</y>
-         <width>72</width>
-         <height>24</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Alt/Az</string>
-       </property>
-      </widget>
-      <widget class="QRadioButton" name="radioButton_2">
-       <property name="geometry">
-        <rect>
-         <x>192</x>
-         <y>24</y>
-         <width>104</width>
-         <height>24</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Equatorial</string>
        </property>
       </widget>
      </widget>

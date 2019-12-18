@@ -41,7 +41,7 @@
 #define MAX_PORT_NAME_SIZE 120
 
 
-// #define SkyPortalWiFi_X2_DEBUG    // Define this to have log files
+#define SkyPortalWiFi_X2_DEBUG    // Define this to have log files
 
 #if defined(SB_WIN_BUILD)
 #define DEF_PORT_NAME					"COM1"
@@ -201,7 +201,7 @@ private:
 	TickCountInterface						*GetTickCountInterface() {return m_pTickCount;}
 	
 	// Variables to store Sky X interfaces
-	int m_nPrivateMulitInstanceIndex;
+	int 									m_nPrivateMulitInstanceIndex;
 	SerXInterface*							m_pSerX;
 	TheSkyXFacadeForDriversInterface* 		m_pTheSkyXForMounts;
 	SleeperInterface*						m_pSleeper;
