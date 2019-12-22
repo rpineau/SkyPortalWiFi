@@ -45,12 +45,16 @@ X2Mount::X2Mount(const char* pszDriverSelection,
 		fflush(LogFile);
 	}
 	#endif
-	 if(strstr(pszDriverSelection,"Equatorial")) {
-		mSkyPortalWiFi.setMountMode(true);
+	if(strstr(pszDriverSelection,"Equatorial")) {
+		mSkyPortalWiFi.setMountMode(MountTypeInterface::Asymmetrical_Equatorial);
+	}
+	else if(strstr(pszDriverSelection,"wedge")) {
+		 mSkyPortalWiFi.setMountMode(MountTypeInterface::Symmetrical_Equatorial);
 	 }
 	 else {
-		 mSkyPortalWiFi.setMountMode(false);
+		 mSkyPortalWiFi.setMountMode(MountTypeInterface::AltAz);
 	 }
+
 	m_bSynced = false;
 	m_bParked = false;
     m_bLinked = false;
@@ -66,8 +70,6 @@ X2Mount::X2Mount(const char* pszDriverSelection,
     // set to equatorial by default as this is the easiest to deal with
 	if (m_pIniUtil)
 	{
-        mSkyPortalWiFi.setMountMode( m_pIniUtil->readDouble(PARENT_KEY, CHILD_KEY_MOUNT_IS_GEM, true));
-
         dAz = m_pIniUtil->readDouble(PARENT_KEY, CHILD_KEY_PARK_AZ, 0);
         dAlt = m_pIniUtil->readDouble(PARENT_KEY, CHILD_KEY_PARK_ALT, 0);
         m_pTheSkyXForMounts->HzToEq(dAz, dAlt, dRa, dDec);
@@ -270,11 +272,6 @@ int X2Mount::execModalSettingsDialog(void)
 
     X2MutexLocker ml(GetMutex());
 
-    if(mSkyPortalWiFi.isMountGem())
-        dx->setChecked("radioButton_2", true);
-    else
-        dx->setChecked("radioButton", true);
-
     // Set values in the userinterface
     if(m_bLinked) {
         dx->setEnabled("enableCordWrap",true);
@@ -293,13 +290,11 @@ int X2Mount::execModalSettingsDialog(void)
 	if (bPressedOK) {
         bIsGem = dx->isChecked("radioButton_2");
         bCordWrap = dx->isChecked("enableCordWrap");
-        m_pIniUtil->writeInt(PARENT_KEY, CHILD_KEY_MOUNT_IS_GEM, bIsGem);
         m_pIniUtil->writeInt(PARENT_KEY, CHILD_KEY_CORD_WRAP, bCordWrap);
         if(bCordWrap) {
             dx->propertyDouble("cordWrapPosition", "value", dCordWrapPos);
             m_pIniUtil->writeDouble(PARENT_KEY, CHILD_KEY_CORD_WRAP_POS, dCordWrapPos);
         }
-        mSkyPortalWiFi.setMountMode(bIsGem);
         // mSkyPortalWiFi.setCordWrapEnabled(bCordWrap);
         // mSkyPortalWiFi.setCordWrapPos(dCordWrapPos);
 	}

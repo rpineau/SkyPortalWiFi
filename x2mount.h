@@ -32,7 +32,7 @@
 
 #define PARENT_KEY			"SkyPortalWiF"
 #define CHILD_KEY_PORT_NAME "PortName"
-#define CHILD_KEY_MOUNT_IS_GEM "IsGem"
+#define CHILD_KEY_MOUNT_TYPE "MountType"
 #define CHILD_KEY_CORD_WRAP "CordWrap"
 #define CHILD_KEY_CORD_WRAP_POS "CordWrapPos"
 

@@ -51,6 +51,7 @@ enum SkyPortalWiFiErrors {PLUGIN_OK=0, NOT_CONNECTED, PLUGIN_CANT_CONNECT, PLUGI
 
 typedef std::vector<uint8_t> Buffer_t;
 
+enum mTypes {EQ_MOUNT, AZ_MOUNT_WEDGE, AZ_MOUMT};
 
 enum Targets {
 	PC = 0x20,	// we're sending from AUX address 0x20
@@ -130,9 +131,7 @@ public:
     void setTSX(TheSkyXFacadeForDriversInterface *pTSX) { m_pTsx = pTSX; m_dLatitude = m_pTsx->latitude(); }
     void setSleeper(SleeperInterface *pSleeper) { m_pSleeper = pSleeper;}
 
-    void setMountMode(bool bIsGEM) { m_bMountIsGEM = bIsGEM;}
-    bool isMountGem() { return m_bMountIsGEM;}
-
+	void setMountMode(MountTypeInterface::Type mountType);
     int getNbSlewRates();
     int getRateName(int nZeroBasedIndex, char *pszOut, unsigned int nOutMaxSize);
 
@@ -180,7 +179,7 @@ private:
     char    m_szDate[SERIAL_BUFFER_SIZE];
     int     m_nSiteNumber;
 
-    bool    m_bMountIsGEM;
+    MountTypeInterface::Type    m_mountType;
     double  m_dLatitude;
 
     double  m_dCurrentRa;        // Current mount Ra
@@ -227,14 +226,13 @@ private:
     void    convertRaToHHMMSSt(double dRa, char *szResult, unsigned int size);
     int     convertHHMMSStToRa(const char *szStrRa, double &dRa);
 
-    void    stepsToDeg(int nSteps, double &dDeg);
-    void    degToSteps(double dDeg, int &nSteps);
+    void    azStepsToDeg(int nSteps, double &dDeg);
+    void    azDegToSteps(double dDeg, int &nSteps);
 
-    void    fixAltSteps(int &nAltSteps);
-    void    fixAzSteps(int &nAzSteps);
+    void    altStepsToDeg(int nSteps, double &dDeg);
+    void    altDegToSteps(double dDeg, int &nSteps);
 
-    int     getFixedAlt(int nAltSteps);
-    int     getFixedAz(int nAzSteps);
+	bool	m_bIsMountEquatorial;
 
     const char m_aszSlewRateNames[SkyPortalWiFi_NB_SLEW_SPEEDS][SkyPortalWiFi_SLEW_NAME_LENGHT] = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"};
     int   parseFields(const char *pszIn, std::vector<std::string> &svFields, char cSeparator);
