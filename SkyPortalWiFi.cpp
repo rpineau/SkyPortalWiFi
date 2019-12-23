@@ -434,7 +434,7 @@ void SkyPortalWiFi::hexdump(const unsigned char* pszInputBuffer, unsigned char *
 int SkyPortalWiFi::getFirmwareVersion(char *pszVersion, unsigned int nStrMaxLen)
 {
     int nErr = PLUGIN_OK;
-    Buffer_t Cmd;
+    Buffer_t Cmd(SERIAL_BUFFER_SIZE);
     Buffer_t Resp;
     char AMZVersion[SERIAL_BUFFER_SIZE];
     char ALTVersion[SERIAL_BUFFER_SIZE];
@@ -442,7 +442,7 @@ int SkyPortalWiFi::getFirmwareVersion(char *pszVersion, unsigned int nStrMaxLen)
     if(!m_bIsConnected)
         return ERR_COMMNOLINK;
 
-    Cmd.assign (SERIAL_BUFFER_SIZE, 0);
+    
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     ltime = time(NULL);
@@ -481,7 +481,7 @@ int SkyPortalWiFi::getFirmwareVersion(char *pszVersion, unsigned int nStrMaxLen)
     fflush(Logfile);
 #endif
 
-	Cmd.assign (SERIAL_BUFFER_SIZE, 0);
+	
 
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
@@ -681,7 +681,7 @@ int SkyPortalWiFi::getRaAndDec(double &dRa, double &dDec)
 int SkyPortalWiFi::getPosition(int &nAzSteps, int &nAltSteps)
 {
     int nErr = PLUGIN_OK;
-	Buffer_t Cmd;
+	Buffer_t Cmd(SERIAL_BUFFER_SIZE);
 	Buffer_t Resp;
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
@@ -700,7 +700,7 @@ int SkyPortalWiFi::getPosition(int &nAzSteps, int &nAltSteps)
     fprintf(Logfile, "[%s] [CSkyPortalWiFi::getPosition] Get Az\n", timestamp);
     fflush(Logfile);
 #endif
-    Cmd.assign (SERIAL_BUFFER_SIZE, 0);
+    
     // get AZM
     Cmd[0] = SOM;
     Cmd[MSG_LEN] = 3;
@@ -731,7 +731,7 @@ int SkyPortalWiFi::getPosition(int &nAzSteps, int &nAltSteps)
     fprintf(Logfile, "[%s] [CSkyPortalWiFi::getPosition] Get Alt\n", timestamp);
     fflush(Logfile);
 #endif
-	Cmd.assign (SERIAL_BUFFER_SIZE, 0);
+	
     // get ALT
     Cmd[0] = SOM;
     Cmd[MSG_LEN] = 3;
@@ -770,7 +770,7 @@ int SkyPortalWiFi::setPosition(int nAzSteps, int nAltSteps )
 {
 
     int nErr = PLUGIN_OK;
-    Buffer_t Cmd;
+    Buffer_t Cmd(SERIAL_BUFFER_SIZE);
     Buffer_t Resp;
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
@@ -792,7 +792,7 @@ int SkyPortalWiFi::setPosition(int nAzSteps, int nAltSteps )
     fflush(Logfile);
 #endif
     // set AZM
-    Cmd.assign (SERIAL_BUFFER_SIZE, 0);
+    
     Cmd[0] = SOM;
     Cmd[MSG_LEN] = 6;
     Cmd[SRC_DEV] = PC;
@@ -822,7 +822,7 @@ int SkyPortalWiFi::setPosition(int nAzSteps, int nAltSteps )
     fflush(Logfile);
 #endif
     // set ALT
-    Cmd.assign (SERIAL_BUFFER_SIZE, 0);
+    
     Cmd[0] = SOM;
     Cmd[MSG_LEN] = 6;
     Cmd[SRC_DEV] = PC;
@@ -1126,7 +1126,7 @@ int SkyPortalWiFi::startSlewTo(double dRa, double dDec, bool bFast)
 {
     int nErr = PLUGIN_OK;
     bool bAligned;
-    Buffer_t Cmd;
+    Buffer_t Cmd(SERIAL_BUFFER_SIZE);
     Buffer_t Resp;
 
     double dAlt, dAz;
@@ -1142,7 +1142,7 @@ int SkyPortalWiFi::startSlewTo(double dRa, double dDec, bool bFast)
 
     m_dGotoRATarget = dRa;
     m_dGotoDECTarget = dDec;
-
+    
     Cmd[0] = SOM;
     Cmd[MSG_LEN] = 6;
     Cmd[SRC_DEV] = PC;
@@ -1151,12 +1151,6 @@ int SkyPortalWiFi::startSlewTo(double dRa, double dDec, bool bFast)
     else
         Cmd[CMD_ID] = MC_GOTO_SLOW;
 
-
-    Cmd[0] = SOM;
-    Cmd[MSG_LEN] = 6;
-    Cmd[SRC_DEV] = PC;
-    Cmd[CMD_ID] = MC_SET_POSITION;
-
     nErr = isAligned(bAligned);
     if(nErr)
         return nErr;
@@ -1164,7 +1158,7 @@ int SkyPortalWiFi::startSlewTo(double dRa, double dDec, bool bFast)
 
     if(m_bIsMountEquatorial) {
         // do Az (Ra)
-        Cmd.assign (SERIAL_BUFFER_SIZE, 0);
+        
         Cmd[DST_DEV] = AZM;
         azDegToSteps(dRa, nAzPos);
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
@@ -1190,7 +1184,7 @@ int SkyPortalWiFi::startSlewTo(double dRa, double dDec, bool bFast)
             return nErr;
         }
         // do Alt (Dec)
-        Cmd.assign (SERIAL_BUFFER_SIZE, 0);
+        
         Cmd[DST_DEV] = ALT;
         altDegToSteps(dDec, nAltPos);
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
@@ -1227,7 +1221,7 @@ int SkyPortalWiFi::startSlewTo(double dRa, double dDec, bool bFast)
         fflush(Logfile);
 #endif
         // do Az
-        Cmd.assign (SERIAL_BUFFER_SIZE, 0);
+        
         Cmd[DST_DEV] = AZM;
         azDegToSteps(dAz, nAzPos);
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
@@ -1253,7 +1247,7 @@ int SkyPortalWiFi::startSlewTo(double dRa, double dDec, bool bFast)
             return nErr;
         }
         // do Alt
-        Cmd.assign (SERIAL_BUFFER_SIZE, 0);
+        
         Cmd[DST_DEV] = ALT;
         altDegToSteps(dAlt, nAltPos);
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
@@ -1292,13 +1286,13 @@ int SkyPortalWiFi::startSlewTo(double dRa, double dDec, bool bFast)
 int SkyPortalWiFi::startOpenSlew(const MountDriverInterface::MoveDir Dir, unsigned int nRate)
 {
     int nErr = PLUGIN_OK;
-    Buffer_t Cmd;
+    Buffer_t Cmd(SERIAL_BUFFER_SIZE);
     Buffer_t Resp;
     int nSlewRate;
 
     m_nOpenLoopDir = Dir;
 
-    Cmd.assign (SERIAL_BUFFER_SIZE, 0);
+    
     Cmd[0] = SOM;
     Cmd[MSG_LEN] = 3;
     Cmd[SRC_DEV] = PC;
@@ -1362,7 +1356,7 @@ int SkyPortalWiFi::startOpenSlew(const MountDriverInterface::MoveDir Dir, unsign
 int SkyPortalWiFi::stopOpenLoopMove()
 {
     int nErr = PLUGIN_OK;
-    Buffer_t Cmd;
+    Buffer_t Cmd(SERIAL_BUFFER_SIZE);
     Buffer_t Resp;
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
@@ -1373,7 +1367,7 @@ int SkyPortalWiFi::stopOpenLoopMove()
     fflush(Logfile);
 #endif
 
-    Cmd.assign (SERIAL_BUFFER_SIZE, 0);
+    
     switch(m_nOpenLoopDir){
         case MountDriverInterface::MD_NORTH:
             Cmd[DST_DEV] = ALT;
@@ -1406,7 +1400,7 @@ int SkyPortalWiFi::stopOpenLoopMove()
 int SkyPortalWiFi::isSlewToComplete(bool &bComplete)
 {
     int nErr = PLUGIN_OK;
-    Buffer_t Cmd;
+    Buffer_t Cmd(SERIAL_BUFFER_SIZE);
     Buffer_t Resp;
     unsigned char szHexMessage[LOG_BUFFER_SIZE];
     bool bAzComplete, baltComplete;
@@ -1430,7 +1424,7 @@ int SkyPortalWiFi::isSlewToComplete(bool &bComplete)
     fflush(Logfile);
 #endif
 
-    Cmd.assign (SERIAL_BUFFER_SIZE, 0);
+    
     // check slew on AZM
     Cmd[0] = SOM;
     Cmd[MSG_LEN] = 3;
@@ -1446,7 +1440,7 @@ int SkyPortalWiFi::isSlewToComplete(bool &bComplete)
     if(Resp[0] == 0xFF)
         baltComplete = true;
 
-    Cmd.assign (SERIAL_BUFFER_SIZE, 0);
+    
     // check slew on alt
     Cmd[0] = SOM;
     Cmd[MSG_LEN] = 3;
@@ -1613,7 +1607,7 @@ int SkyPortalWiFi::Abort()
 int SkyPortalWiFi::moveAz(int nSteps)
 {
     int nErr = PLUGIN_OK;
-    Buffer_t Cmd;
+    Buffer_t Cmd(SERIAL_BUFFER_SIZE);
     Buffer_t Resp;
     unsigned char cCmd = MC_MOVE_POS;
 
@@ -1622,7 +1616,7 @@ int SkyPortalWiFi::moveAz(int nSteps)
         cCmd = MC_MOVE_NEG;
     }
 
-    Cmd.assign (SERIAL_BUFFER_SIZE, 0);
+    
     // set AZM
     Cmd[0] = SOM;
     Cmd[MSG_LEN] = 6;
@@ -1641,7 +1635,7 @@ int SkyPortalWiFi::moveAz(int nSteps)
 int SkyPortalWiFi::moveAlt(int nSteps)
 {
     int nErr = PLUGIN_OK;
-    Buffer_t Cmd;
+    Buffer_t Cmd(SERIAL_BUFFER_SIZE);
     Buffer_t Resp;
     unsigned char cCmd = MC_MOVE_POS;
 
@@ -1649,7 +1643,7 @@ int SkyPortalWiFi::moveAlt(int nSteps)
         nSteps = abs(nSteps);
         cCmd = MC_MOVE_NEG;
     }
-    Cmd.assign (SERIAL_BUFFER_SIZE, 0);
+    
     // set ALT
     Cmd[0] = SOM;
     Cmd[MSG_LEN] = 6;
@@ -1671,7 +1665,7 @@ int SkyPortalWiFi::moveAlt(int nSteps)
 int SkyPortalWiFi::setTrackingRatesSteps( int nAzRate, int nAltRate, int nDataLen)
 {
     int nErr = PLUGIN_OK;
-    Buffer_t Cmd;
+    Buffer_t Cmd(SERIAL_BUFFER_SIZE);
     Buffer_t Resp;
     unsigned char cCmd;
 
@@ -1685,7 +1679,7 @@ int SkyPortalWiFi::setTrackingRatesSteps( int nAzRate, int nAltRate, int nDataLe
     fflush(Logfile);
 #endif
 
-    Cmd.assign (SERIAL_BUFFER_SIZE, 0);
+    
 
     cCmd = MC_SET_POS_GUIDERATE;
     if(nAzRate <0) {
@@ -1706,7 +1700,7 @@ int SkyPortalWiFi::setTrackingRatesSteps( int nAzRate, int nAltRate, int nDataLe
     fflush(Logfile);
 #endif
 
-    Cmd.assign (SERIAL_BUFFER_SIZE, 0);
+    
     // set AZM
     Cmd[0] = SOM;
     Cmd[MSG_LEN] = 3 + nDataLen;
@@ -1750,7 +1744,7 @@ int SkyPortalWiFi::setTrackingRatesSteps( int nAzRate, int nAltRate, int nDataLe
     fflush(Logfile);
 #endif
 
-    Cmd.assign (SERIAL_BUFFER_SIZE, 0);
+    
     // set ALT
     Cmd[0] = SOM;
     Cmd[MSG_LEN] = 3+nDataLen;
