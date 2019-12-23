@@ -23,6 +23,12 @@ SkyPortalWiFi::SkyPortalWiFi()
     m_nPrevAltSteps = 0;
     m_nPrevAzSteps = 0;
 
+    m_dCurrentRa = 0;
+    m_dCurrentDec = 0;
+
+    m_dHoursEast = 0;
+    m_dHoursWest = 0;
+    
 #ifdef PLUGIN_DEBUG
 #if defined(SB_WIN_BUILD)
     m_sLogfilePath = getenv("HOMEDRIVE");
@@ -196,14 +202,10 @@ int SkyPortalWiFi::SendCommand(const Buffer_t Cmd, Buffer_t &Resp, const bool bE
 				return ERR_CMDFAILED;
 			}
 			// read response
-#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 5
-			nErr = SimulateResponse(Resp, nTarget , nRespLen);
-#else
 			nErr = ReadResponse(Resp, nTarget, nRespLen);
-#endif
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 3
-			if(Resp.size() && nTarget == PC) { // filter out command echo
+			if(nTarget == PC) { // filter out command echo
 				ltime = time(NULL);
 				timestamp = asctime(localtime(&ltime));
 				timestamp[strlen(timestamp) - 1] = 0;
@@ -216,7 +218,7 @@ int SkyPortalWiFi::SendCommand(const Buffer_t Cmd, Buffer_t &Resp, const bool bE
 				return nErr;
 			m_pSleeper->sleep(100);
 			timeout++;
-		} while(Resp.size() && nTarget != PC);
+		} while(nTarget != PC);
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 3
 		ltime = time(NULL);
@@ -311,7 +313,7 @@ int SkyPortalWiFi::ReadResponse(Buffer_t &RespBuffer, uint8_t &nTarget, int &nLe
 	ltime = time(NULL);
 	timestamp = asctime(localtime(&ltime));
 	timestamp[strlen(timestamp) - 1] = 0;
-	fprintf(Logfile, "[%s] [CCelestronFocus::readResponse] Calculated checksume is 0x%02X, message checksum is 0x%02X\n", timestamp, cChecksum, cRespChecksum);
+	fprintf(Logfile, "[%s] [CCelestronFocus::readResponse] Calculated checksum is 0x%02X, message checksum is 0x%02X\n", timestamp, cChecksum, cRespChecksum);
 	fflush(Logfile);
 #endif
 	if (cChecksum != cRespChecksum) {
@@ -606,6 +608,14 @@ int SkyPortalWiFi::getRaAndDec(double &dRa, double &dDec)
         }
         m_trakingTimer.Reset();
 
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        ltime = time(NULL);
+        timestamp = asctime(localtime(&ltime));
+        timestamp[strlen(timestamp) - 1] = 0;
+        fprintf(Logfile, "[%s] [SkyPortalWiFi::getRaAndDec] adjust the tracking rate\n", timestamp);
+        fflush(Logfile);
+#endif
+
         // It should be pointing to the latest goto/move
         // get Alt/Az for where it should be pointing
         m_pTsx->EqToHz(m_dCurrentRa, m_dCurrentDec, dNewAz, dNewAlt);
@@ -690,6 +700,7 @@ int SkyPortalWiFi::getPosition(int &nAzSteps, int &nAltSteps)
     fprintf(Logfile, "[%s] [CSkyPortalWiFi::getPosition] Get Az\n", timestamp);
     fflush(Logfile);
 #endif
+    Cmd.assign (SERIAL_BUFFER_SIZE, 0);
     // get AZM
     Cmd[0] = SOM;
     Cmd[MSG_LEN] = 3;
@@ -781,6 +792,7 @@ int SkyPortalWiFi::setPosition(int nAzSteps, int nAltSteps )
     fflush(Logfile);
 #endif
     // set AZM
+    Cmd.assign (SERIAL_BUFFER_SIZE, 0);
     Cmd[0] = SOM;
     Cmd[MSG_LEN] = 6;
     Cmd[SRC_DEV] = PC;
@@ -810,6 +822,7 @@ int SkyPortalWiFi::setPosition(int nAzSteps, int nAltSteps )
     fflush(Logfile);
 #endif
     // set ALT
+    Cmd.assign (SERIAL_BUFFER_SIZE, 0);
     Cmd[0] = SOM;
     Cmd[MSG_LEN] = 6;
     Cmd[SRC_DEV] = PC;
@@ -1148,8 +1161,10 @@ int SkyPortalWiFi::startSlewTo(double dRa, double dDec, bool bFast)
     if(nErr)
         return nErr;
 
+
     if(m_bIsMountEquatorial) {
         // do Az (Ra)
+        Cmd.assign (SERIAL_BUFFER_SIZE, 0);
         Cmd[DST_DEV] = AZM;
         azDegToSteps(dRa, nAzPos);
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
@@ -1175,6 +1190,7 @@ int SkyPortalWiFi::startSlewTo(double dRa, double dDec, bool bFast)
             return nErr;
         }
         // do Alt (Dec)
+        Cmd.assign (SERIAL_BUFFER_SIZE, 0);
         Cmd[DST_DEV] = ALT;
         altDegToSteps(dDec, nAltPos);
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
@@ -1211,6 +1227,7 @@ int SkyPortalWiFi::startSlewTo(double dRa, double dDec, bool bFast)
         fflush(Logfile);
 #endif
         // do Az
+        Cmd.assign (SERIAL_BUFFER_SIZE, 0);
         Cmd[DST_DEV] = AZM;
         azDegToSteps(dAz, nAzPos);
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
@@ -1236,6 +1253,7 @@ int SkyPortalWiFi::startSlewTo(double dRa, double dDec, bool bFast)
             return nErr;
         }
         // do Alt
+        Cmd.assign (SERIAL_BUFFER_SIZE, 0);
         Cmd[DST_DEV] = ALT;
         altDegToSteps(dAlt, nAltPos);
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
@@ -1280,6 +1298,7 @@ int SkyPortalWiFi::startOpenSlew(const MountDriverInterface::MoveDir Dir, unsign
 
     m_nOpenLoopDir = Dir;
 
+    Cmd.assign (SERIAL_BUFFER_SIZE, 0);
     Cmd[0] = SOM;
     Cmd[MSG_LEN] = 3;
     Cmd[SRC_DEV] = PC;
@@ -1354,6 +1373,7 @@ int SkyPortalWiFi::stopOpenLoopMove()
     fflush(Logfile);
 #endif
 
+    Cmd.assign (SERIAL_BUFFER_SIZE, 0);
     switch(m_nOpenLoopDir){
         case MountDriverInterface::MD_NORTH:
             Cmd[DST_DEV] = ALT;
@@ -1410,6 +1430,7 @@ int SkyPortalWiFi::isSlewToComplete(bool &bComplete)
     fflush(Logfile);
 #endif
 
+    Cmd.assign (SERIAL_BUFFER_SIZE, 0);
     // check slew on AZM
     Cmd[0] = SOM;
     Cmd[MSG_LEN] = 3;
@@ -1425,6 +1446,7 @@ int SkyPortalWiFi::isSlewToComplete(bool &bComplete)
     if(Resp[0] == 0xFF)
         baltComplete = true;
 
+    Cmd.assign (SERIAL_BUFFER_SIZE, 0);
     // check slew on alt
     Cmd[0] = SOM;
     Cmd[MSG_LEN] = 3;
@@ -1600,6 +1622,7 @@ int SkyPortalWiFi::moveAz(int nSteps)
         cCmd = MC_MOVE_NEG;
     }
 
+    Cmd.assign (SERIAL_BUFFER_SIZE, 0);
     // set AZM
     Cmd[0] = SOM;
     Cmd[MSG_LEN] = 6;
@@ -1626,6 +1649,7 @@ int SkyPortalWiFi::moveAlt(int nSteps)
         nSteps = abs(nSteps);
         cCmd = MC_MOVE_NEG;
     }
+    Cmd.assign (SERIAL_BUFFER_SIZE, 0);
     // set ALT
     Cmd[0] = SOM;
     Cmd[MSG_LEN] = 6;
@@ -1661,6 +1685,8 @@ int SkyPortalWiFi::setTrackingRatesSteps( int nAzRate, int nAltRate, int nDataLe
     fflush(Logfile);
 #endif
 
+    Cmd.assign (SERIAL_BUFFER_SIZE, 0);
+
     cCmd = MC_SET_POS_GUIDERATE;
     if(nAzRate <0) {
         nAzRate = abs(nAzRate);
@@ -1680,6 +1706,7 @@ int SkyPortalWiFi::setTrackingRatesSteps( int nAzRate, int nAltRate, int nDataLe
     fflush(Logfile);
 #endif
 
+    Cmd.assign (SERIAL_BUFFER_SIZE, 0);
     // set AZM
     Cmd[0] = SOM;
     Cmd[MSG_LEN] = 3 + nDataLen;
@@ -1723,6 +1750,7 @@ int SkyPortalWiFi::setTrackingRatesSteps( int nAzRate, int nAltRate, int nDataLe
     fflush(Logfile);
 #endif
 
+    Cmd.assign (SERIAL_BUFFER_SIZE, 0);
     // set ALT
     Cmd[0] = SOM;
     Cmd[MSG_LEN] = 3+nDataLen;
