@@ -27,13 +27,15 @@
 #include "StopWatch.h"
 
 
-#define PLUGIN_DEBUG 3   // define this to have log files, 1 = bad stuff only, 2 and up.. full debug
+#define PLUGIN_DEBUG 2   // define this to have log files, 1 = bad stuff only, 2 and up.. full debug
 
 enum SkyPortalWiFiErrors {PLUGIN_OK=0, NOT_CONNECTED, PLUGIN_CANT_CONNECT, PLUGIN_BAD_CMD_RESPONSE, COMMAND_FAILED, PLUGIN_ERROR};
 
 #define SERIAL_BUFFER_SIZE 1024
 #define MAX_TIMEOUT 1000
 #define LOG_BUFFER_SIZE 1024
+
+#define RATE_CORRECT_INTERVAL 5
 
 #define SOM     0x3B
 #define MSG_LEN 1
@@ -47,8 +49,8 @@ enum SkyPortalWiFiErrors {PLUGIN_OK=0, NOT_CONNECTED, PLUGIN_CANT_CONNECT, PLUGI
 
 #define STEPS_PER_REVOLUTION    16777216
 #define STEPS_PER_DEGREE        (STEPS_PER_REVOLUTION / 360.0)
-#define TRACK_SCALE             60000 / STEPS_PER_DEGREE
-
+// #define TRACK_SCALE             60000 / STEPS_PER_DEGREE
+#define TRACK_SCALE 1.315
 typedef std::vector<uint8_t> Buffer_t;
 
 enum mTypes {EQ_MOUNT, AZ_MOUNT_WEDGE, AZ_MOUMT};
@@ -243,10 +245,13 @@ private:
     bool            m_bSiderealOn;
     bool            m_bIsParking;
     bool            m_bGotoFast;
-
+    bool            m_bSlewing;
+    
     double          m_dParkRa;
     double          m_dParkDec;
 
+    double          m_dTrackRaArcSecPerMin;
+    double          m_dTrackDecArcSecPerMin;
 
 #ifdef PLUGIN_DEBUG
     std::string m_sLogfilePath;
