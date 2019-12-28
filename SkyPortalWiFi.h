@@ -130,7 +130,7 @@ public:
 	bool isConnected() const { return m_bIsConnected; }
 
     void setSerxPointer(SerXInterface *p) { m_pSerx = p; }
-    void setTSX(TheSkyXFacadeForDriversInterface *pTSX) { m_pTsx = pTSX; m_dLatitude = m_pTsx->latitude(); }
+    void setTSX(TheSkyXFacadeForDriversInterface *pTSX) { m_pTSX = pTSX; m_dLatitude = m_pTSX->latitude(); }
     void setSleeper(SleeperInterface *pSleeper) { m_pSleeper = pSleeper;}
 
 	void setMountMode(MountTypeInterface::Type mountType);
@@ -139,7 +139,7 @@ public:
 
     int getFirmwareVersion(char *version, unsigned int strMaxLen);
 
-    int getRaAndDec(double &dRa, double &dDec);
+    int getHaAndDec(double &dHa, double &dDec);
     int syncTo(double dRa, double dDec);
     int isAligned(bool &bAligned);
 
@@ -165,7 +165,7 @@ public:
 private:
 
     SerXInterface                       *m_pSerx;
-    TheSkyXFacadeForDriversInterface    *m_pTsx;
+    TheSkyXFacadeForDriversInterface    *m_pTSX;
     SleeperInterface                    *m_pSleeper;
 
     bool    m_bDebugLog;
@@ -230,6 +230,9 @@ private:
 
     void    azStepsToDeg(int nSteps, double &dDeg);
     void    azDegToSteps(double dDeg, int &nSteps);
+
+    double  stepToHa(int nSteps);
+    int     haToSteps(double dHa);
 
     void    altStepsToDeg(int nSteps, double &dDeg);
     void    altDegToSteps(double dDeg, int &nSteps);

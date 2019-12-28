@@ -427,11 +427,15 @@ int X2Mount::raDec(double& ra, double& dec, const bool& bCached)
         return ERR_NOLINK;
 
     X2MutexLocker ml(GetMutex());
-
+    double dHa;
+    
 	// Get the RA and DEC from the mount
-	nErr = mSkyPortalWiFi.getRaAndDec(ra, dec);
+	nErr = mSkyPortalWiFi.getHaAndDec(dHa, dec);
     if(nErr)
         nErr = ERR_CMDFAILED;
+
+    // Subtract HA from lst to get ra;
+    ra = m_pTheSkyXForMounts->lst()-dHa;
 
 #ifdef SkyPortalWiFi_X2_DEBUG
     if (LogFile) {

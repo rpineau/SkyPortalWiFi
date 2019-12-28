@@ -475,7 +475,7 @@ int SkyPortalWiFi::getFirmwareVersion(char *pszVersion, unsigned int nStrMaxLen)
     Buffer_t Resp;
     char AMZVersion[SERIAL_BUFFER_SIZE];
     char ALTVersion[SERIAL_BUFFER_SIZE];
-
+    
     if(!m_bIsConnected)
         return ERR_COMMNOLINK;
 
@@ -565,7 +565,7 @@ int SkyPortalWiFi::getFirmwareVersion(char *pszVersion, unsigned int nStrMaxLen)
 
 #pragma mark - Mount Coordinates
 
-int SkyPortalWiFi::getRaAndDec(double &dRa, double &dDec)
+int SkyPortalWiFi::getHaAndDec(double &dHa, double &dDec)
 {
     int nErr = PLUGIN_OK;
 
@@ -576,6 +576,8 @@ int SkyPortalWiFi::getRaAndDec(double &dRa, double &dDec)
     int nAltError, nAzError;        // position error
     int nAltRate, nAzRate;          // guide rate
     float fSecondsDelta;
+    double dRa;
+
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     ltime = time(NULL);
     timestamp = asctime(localtime(&ltime));
@@ -597,13 +599,13 @@ int SkyPortalWiFi::getRaAndDec(double &dRa, double &dDec)
     }
 
     if(m_bIsMountEquatorial) {
-		azStepsToDeg(nAzSteps, dRa);
+		dHa = stepToHa(nAzSteps);
 		altStepsToDeg(nAltSteps, dDec);
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
         ltime = time(NULL);
         timestamp = asctime(localtime(&ltime));
         timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(Logfile, "[%s] [SkyPortalWiFi::getRaAndDec] Ra : %3.2f\n", timestamp, dRa);
+        fprintf(Logfile, "[%s] [SkyPortalWiFi::getRaAndDec] dHa : %3.2f\n", timestamp, dHa);
         fprintf(Logfile, "[%s] [SkyPortalWiFi::getRaAndDec] Dec : %3.2f\n", timestamp, dDec);
         fflush(Logfile);
 #endif
@@ -622,13 +624,15 @@ int SkyPortalWiFi::getRaAndDec(double &dRa, double &dDec)
     fflush(Logfile);
 #endif
 
-    m_pTsx->HzToEq(dAz, dAlt, dRa, dDec); // convert  Az,Alt to TSX Ra,Dec
-    
+    m_pTSX->HzToEq(dAz, dAlt, dRa, dDec); // convert  Az,Alt to TSX Ra,Dec
+    dHa = m_pTSX->hourAngle(dRa);
+
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     ltime = time(NULL);
     timestamp = asctime(localtime(&ltime));
     timestamp[strlen(timestamp) - 1] = 0;
     fprintf(Logfile, "[%s] [SkyPortalWiFi::getRaAndDec] Ra : %3.2f\n", timestamp, dRa);
+    fprintf(Logfile, "[%s] [SkyPortalWiFi::getRaAndDec] Ha : %3.2f\n", timestamp, dHa);
     fprintf(Logfile, "[%s] [SkyPortalWiFi::getRaAndDec] Dec : %3.2f\n", timestamp, dDec);
     fprintf(Logfile, "[%s] [SkyPortalWiFi::getRaAndDec] m_dCurrentRa : %3.2f\n", timestamp, m_dCurrentRa);
     fprintf(Logfile, "[%s] [SkyPortalWiFi::getRaAndDec] m_dCurrentDec : %3.2f\n", timestamp, m_dCurrentDec);
@@ -666,7 +670,7 @@ int SkyPortalWiFi::getRaAndDec(double &dRa, double &dDec)
 
         // It should be pointing to the latest goto/move
         // get Alt/Az for where it should be pointing
-        m_pTsx->EqToHz(m_dCurrentRa, m_dCurrentDec, dNewAz, dNewAlt);
+        m_pTSX->EqToHz(m_dCurrentRa, m_dCurrentDec, dNewAz, dNewAlt);
         // conver to steps
         azDegToSteps(dNewAz, nNewAzSteps);
         altDegToSteps(dNewAlt, nNewAltSteps);
@@ -931,7 +935,8 @@ int SkyPortalWiFi::syncTo(double dRa, double dDec)
     int nErr = PLUGIN_OK;
     double dAltPos, dAzPos;
     int nAltPos, nAzPos;
-
+    double dHa;
+    
     m_bIsSynced = false;
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
@@ -941,12 +946,13 @@ int SkyPortalWiFi::syncTo(double dRa, double dDec)
     fprintf(Logfile, "[%s] [SkyPortalWiFi::syncTo]\n", timestamp);
     fflush(Logfile);
 #endif
-
+    dHa = m_pTSX->hourAngle(dRa);
+    
     if(m_bIsMountEquatorial) {
-        dAzPos = dRa;
+        dAzPos = haToSteps(dHa);
         dAltPos = dDec;
     } else {
-        m_pTsx->EqToHz(dRa, dDec, dAzPos, dAltPos);
+        m_pTSX->EqToHz(dRa, dDec, dAzPos, dAltPos);
     }
 
     azDegToSteps(dAzPos, nAzPos);
@@ -960,6 +966,7 @@ int SkyPortalWiFi::syncTo(double dRa, double dDec)
     timestamp[strlen(timestamp) - 1] = 0;
     fprintf(Logfile, "[%s] [SkyPortalWiFi::syncTo] m_mountType : %d\n", timestamp, m_mountType);
     fprintf(Logfile, "[%s] [SkyPortalWiFi::syncTo] Ra            : %3.2f\n", timestamp, dRa);
+    fprintf(Logfile, "[%s] [SkyPortalWiFi::syncTo] Ha            : %3.2f\n", timestamp, dHa);
     fprintf(Logfile, "[%s] [SkyPortalWiFi::syncTo] Dec           : %3.2f\n", timestamp, dDec);
     fprintf(Logfile, "[%s] [SkyPortalWiFi::syncTo] Az            : %3.2f\n", timestamp, dAzPos);
     fprintf(Logfile, "[%s] [SkyPortalWiFi::syncTo] Az steps      : %d\n", timestamp, nAzPos);
@@ -985,8 +992,7 @@ int SkyPortalWiFi::syncTo(double dRa, double dDec)
 
     // enable tracking
     nErr = setTrackingRatesSteps(0, 0, 3); // stop first
-    nErr |= setTrackingRates(true, true, 0, 0); // set to sidereal
-    // nErr |= setTrackingRatesSteps(0xFFFF, 0, 2); // set Ra to sidereal
+    nErr |= setTrackingRatesSteps(0xFFFF, 0, 2); // set Ra speed to sidereal
     m_bIsTracking = true;
 
 
@@ -1071,32 +1077,9 @@ int SkyPortalWiFi::setTrackingRates(bool bTrackingOn, bool bIgnoreRates, double 
         fflush(Logfile);
 #endif
         nErr = setTrackingRatesSteps(0, 0, 3); // stop first
+        nErr |= setTrackingRatesSteps(0xFFFF, 0, 2); // set Ra speed to sidereal
         m_dTrackRaArcSecPerMin = 15.0410681*60;
         m_dTrackDecArcSecPerMin = 0;
-        nRaSteps = (m_dTrackRaArcSecPerMin/3600) * STEPS_PER_DEGREE;
-        nDecSteps = (m_dTrackDecArcSecPerMin/3600) * STEPS_PER_DEGREE;
-        // convert tacking rate from to steps per min  *  1000*arcmin/minute
-        nRaSteps = nRaSteps * TRACK_SCALE;
-        nDecSteps = nDecSteps * TRACK_SCALE;
-#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-        ltime = time(NULL);
-        timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(Logfile, "[%s] [SkyPortalWiFi::setTrackingRates] nRaSteps : %d\n", timestamp, nRaSteps);
-        fprintf(Logfile, "[%s] [SkyPortalWiFi::setTrackingRates] nDecSteps : %d\n", timestamp, nDecSteps);
-        fflush(Logfile);
-#endif
-        nErr |= setTrackingRatesSteps(nRaSteps, nDecSteps, 3);
-        if(nErr) {
-#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-            ltime = time(NULL);
-            timestamp = asctime(localtime(&ltime));
-            timestamp[strlen(timestamp) - 1] = 0;
-            fprintf(Logfile, "[%s] [SkyPortalWiFi::setTrackingRates] Error setting to Sidereal : %d\n", timestamp, nErr);
-            fflush(Logfile);
-#endif
-            return nErr;
-        }
         m_bSiderealOn = true;
     }
     else { // custom rates
@@ -1188,8 +1171,8 @@ int SkyPortalWiFi::getLimits(double &dHoursEast, double &dHoursWest)
     if(nErr)
         return nErr;
 
-    dHoursEast = m_pTsx->hourAngle(dEast);
-    dHoursWest = m_pTsx->hourAngle(dWest);
+    dHoursEast = m_pTSX->hourAngle(dEast);
+    dHoursWest = m_pTSX->hourAngle(dWest);
 
     m_bLimitCached = true;
     m_dHoursEast = dHoursEast;
@@ -1289,7 +1272,7 @@ int SkyPortalWiFi::startSlewTo(double dRa, double dDec, bool bFast)
         }
     }
     else {                //// Az/Alt mode //////
-        m_pTsx->EqToHz(dRa, dDec, dAz, dAlt);
+        m_pTSX->EqToHz(dRa, dDec, dAz, dAlt);
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
         ltime = time(NULL);
         timestamp = asctime(localtime(&ltime));
@@ -1634,7 +1617,7 @@ int SkyPortalWiFi::getAtPark(bool &bParked)
     altStepsToDeg(nAltSteps, dAlt);
     azStepsToDeg(nAzSteps, dAz);
 
-    m_pTsx->HzToEq(dAz, dAlt, dRa, dDec);
+    m_pTSX->HzToEq(dAz, dAlt, dRa, dDec);
 
     if( floor(dRa) == floor(m_dParkRa) && floor(dDec) == floor(m_dParkDec))
         bParked = true;
@@ -1770,7 +1753,7 @@ int SkyPortalWiFi::setTrackingRatesSteps( int nAzRate, int nAltRate, int nDataLe
     fprintf(Logfile, "[%s] [SkyPortalWiFi::setTrackingRatesSteps] nAzRate = %d\n", timestamp, nAzRate);
     fprintf(Logfile, "[%s] [SkyPortalWiFi::setTrackingRatesSteps] nAltRate = %d\n", timestamp, nAltRate);
     fprintf(Logfile, "[%s] [SkyPortalWiFi::setTrackingRatesSteps] nDataLen = %d\n", timestamp, nDataLen);
-    fprintf(Logfile, "[%s] [SkyPortalWiFi::setTrackingRatesSteps] latitude = %3.8f\n", timestamp, m_pTsx->latitude());
+    fprintf(Logfile, "[%s] [SkyPortalWiFi::setTrackingRatesSteps] latitude = %3.8f\n", timestamp, m_pTSX->latitude());
     fflush(Logfile);
 #endif
 
@@ -1779,15 +1762,15 @@ int SkyPortalWiFi::setTrackingRatesSteps( int nAzRate, int nAltRate, int nDataLe
     cCmd = MC_SET_POS_GUIDERATE;
 
     // special case for sidereal south
-    if(nAzRate == 0xFFFF &&  m_pTsx->latitude()<0)
+    if(nAzRate == 0xFFFF &&  m_pTSX->latitude()<0)
         cCmd = MC_SET_NEG_GUIDERATE;
     
-    if(nAzRate <0 && m_pTsx->latitude() >= 0) {
+    if(nAzRate <0 && m_pTSX->latitude() >= 0) {
         nAzRate = abs(nAzRate);
         cCmd = MC_SET_NEG_GUIDERATE;
     }
 
-    if(nAzRate > 0 && m_pTsx->latitude() < 0) {
+    if(nAzRate > 0 && m_pTSX->latitude() < 0) {
         cCmd = MC_SET_NEG_GUIDERATE;
     }
 
@@ -1958,6 +1941,17 @@ void SkyPortalWiFi::azDegToSteps(double dDeg, int &nSteps)
 {
     nSteps = int(dDeg * STEPS_PER_DEGREE);
 }
+
+double  SkyPortalWiFi::stepToHa(int nSteps)
+{
+    return double(nSteps) / double(STEPS_PER_REVOLUTION) * 24;
+}
+
+int SkyPortalWiFi::haToSteps(double dHa)
+{
+     return int((double(STEPS_PER_REVOLUTION) * dHa)/ 24.0);
+}
+
 
 void SkyPortalWiFi::altStepsToDeg(int nSteps, double &dDeg)
 {
