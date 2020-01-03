@@ -1,12 +1,16 @@
 #!/bin/bash
 
+PACKAGE_NAME="SkyPortalWiFi_X2.pkg"
+BUNDLE_NAME="org.rti-zone.SkyPortalWiFiX2"
+
+if [ ! -z "$app_id_signature" ]; then
+    codesign -f -s "$app_id_signature" --verbose ../build/Release/libSkyPortalWiFi.dylib
+fi
+
 mkdir -p ROOT/tmp/SkyPortalWiFi_X2/
 cp "../SkyPortalWiFi.ui" ROOT/tmp/SkyPortalWiFi_X2/
 cp "../mountlist SkyPortalWiFi.txt" ROOT/tmp/SkyPortalWiFi_X2/
 cp "../build/Release/libSkyPortalWiFi.dylib" ROOT/tmp/SkyPortalWiFi_X2/
-
-PACKAGE_NAME="SkyPortalWiFi_X2.pkg"
-BUNDLE_NAME="org.rti-zone.SkyPortalWiFiX2"
 
 
 if [ ! -z "$installer_signature" ]; then
