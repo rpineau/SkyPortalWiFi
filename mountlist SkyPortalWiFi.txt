@@ -1,0 +1,5 @@
+//See hardwarelist.txt for details on this file format.
+//Version|Manufacturer|Model|Comment|MapsTo|PlugInDllName|X2Developer|Windows|Mac|Linux|
+2|Celestron International|SkyPortal WiFi Module Equatorial|Equatorial mount| |libSkyPortalWiFi||1|1|1|
+2|Celestron International|SkyPortal WiFi Module Alt-Az|Alt-Az mount| |libSkyPortalWiFi||1|1|1|
+2|Celestron International|SkyPortal WiFi Module Alt-Az on wedge|Alt-Az mount on wedge| |libSkyPortalWiFi||1|1|1|
