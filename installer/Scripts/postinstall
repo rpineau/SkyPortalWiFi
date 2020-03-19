@@ -35,8 +35,12 @@ echo "Installing in $PLUGINS_DIR/MountPlugIns/"
 
 cp -f "/tmp/SkyPortalWiFi_X2/mountlist SkyPortalWiFi.txt" "$TheSkyX_Path/Resources/Common/Miscellaneous Files/"
 if [ "$?" -ne "0" ]; then exit 1; fi
+
+rm -f "$PLUGINS_DIR/MountPlugIns/SkyPortalWiFi.ui"
 cp -f "/tmp/SkyPortalWiFi_X2/SkyPortalWiFi.ui" "$PLUGINS_DIR/MountPlugIns/"
 if [ "$?" -ne "0" ]; then exit 1; fi
+
+rm -f "$PLUGINS_DIR/MountPlugIns/libSkyPortalWiFi.dylib"
 cp -f "/tmp/SkyPortalWiFi_X2/libSkyPortalWiFi.dylib" "$PLUGINS_DIR/MountPlugIns/"
 if [ "$?" -ne "0" ]; then exit 1; fi
 
