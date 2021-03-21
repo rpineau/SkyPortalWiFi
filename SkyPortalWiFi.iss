@@ -40,13 +40,20 @@ DirExistsWarning=no
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
+[Dirs]
+Name: "{app}\Plugins\MountPlugIns";
+Name: "{app}\Plugins64\MountPlugIns";
+
 [Files]
-; WIll also need to customise these!
-Source: "mountlist SkyPortalWiFi.txt"; DestDir: "{app}\Miscellaneous Files"; Flags: ignoreversion
-Source: "libSkyPortalWiFi\Release\libSkyPortalWiFi.dll"; DestDir: "{app}\Plugins\MountPlugIns"; Flags: ignoreversion
-Source: "SkyPortalWiFi.ui"; DestDir: "{app}\Plugins\MountPlugIns"; Flags: ignoreversion
-; NOTE: Don't use "Flags: ignoreversion" on any shared system files
-; msgBox('Do you want to install MyProg.exe to ' + ExtractFilePath(CurrentFileName) + '?', mbConfirmation, MB_YESNO)
+Source: "mountlist SkyPortalWiFi.txt";                          DestDir: "{app}\Miscellaneous Files"; Flags: ignoreversion
+Source: "mountlist SkyPortalWiFi.txt";                          DestDir: "{app}\Miscellaneous Files"; Flags: ignoreversion; DestName: "mountlist64 SkyPortalWiFi.txt"
+; 32 bits
+Source: "libSkyPortalWiFi\Win32\Release\libSkyPortalWiFi.dll";  DestDir: "{app}\Plugins\MountPlugIns"; Flags: ignoreversion
+Source: "SkyPortalWiFi.ui";                                     DestDir: "{app}\Plugins\MountPlugIns"; Flags: ignoreversion
+; 64 bits
+Source: "libSkyPortalWiFi\x64\Release\libSkyPortalWiFi.dll";    DestDir: "{app}\Plugins64\MountPlugIns"; Flags: ignoreversion; Check: DirExists(ExpandConstant('{app}\Plugins64\MountPlugIns'))
+Source: "SkyPortalWiFi.ui";                                     DestDir: "{app}\Plugins64\MountPlugIns"; Flags: ignoreversion; Check: DirExists(ExpandConstant('{app}\Plugins64\MountPlugIns'))
+
 
 [Code]
 {* Below are functions to read TheSkyXInstallPath.txt and confirm that the directory does exist
